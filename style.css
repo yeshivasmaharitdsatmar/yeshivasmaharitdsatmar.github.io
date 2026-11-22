@@ -61,7 +61,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold2);border-co
 a.name{color:var(--navy);text-decoration:none;cursor:pointer;border-bottom:1px dashed var(--gold);font-weight:800;font-size:15.5px}
 .heb{color:#9aa0ad;font-size:12px;font-weight:400;margin-right:6px}
 table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:12px}
-th{background:#faf7f0;color:var(--muted);font-size:12px;font-weight:700;text-align:right;padding:9px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:var(--hdr,0);z-index:3}
+th{background:#faf7f0;color:var(--muted);font-size:12px;font-weight:700;text-align:right;padding:9px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:calc(var(--hdr,0px) + var(--phd,0px));z-index:3}
 thead th:first-child{border-top-right-radius:12px}thead th:last-child{border-top-left-radius:12px}
 .modal th,#calpop th,.scroll th{top:0}td{border-bottom-color:#f0ebe0}
 td{padding:8px 9px;border-bottom:1px solid #f0ebe0;font-size:14px;vertical-align:top}
@@ -433,3 +433,5 @@ a.name:hover{color:#2a5ba8;border-bottom-style:solid}
 .shcols{grid-template-columns:minmax(0,1fr) 280px !important}.shcols td{vertical-align:top}@media (max-width:1100px){.shcols{grid-template-columns:1fr !important}}
 .shcols .phn{white-space:nowrap}
 .shcols.norot{grid-template-columns:1fr !important}
+/* 📌 the page's top row (title + buttons) stays under the header while scrolling (owner, v1.73) */
+@media (min-width:901px){#main > .row:first-child{position:sticky;top:var(--hdr,0px);z-index:4;background:var(--bg);padding-top:10px;padding-bottom:8px;box-shadow:0 6px 8px -8px rgba(0,0,0,.25)}}
