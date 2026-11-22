@@ -247,7 +247,10 @@ const shulName = id => (S.shul[id] && !S.shul[id].del) ? S.shul[id].name : '';
 function nextWed(s) { const d = parse(s); return addDays(s, (3 - d.getDay() + 7) % 7); }
 const shulStart = () => SET().shulStart || nextWed(todayS());
 // Every second Wednesday from shulStart, the next active shul in order.
+// v1.72 (owner): the Wednesday rotation is off unless setting shulRot is true (button on the shuls page)
+const shulRotOn = () => SET().shulRot === true;
 function shulSchedule(n) {
+  if (!shulRotOn()) return [];
   const act = shulList().filter(x => !x.paused); if (!act.length) return [];
   const st = shulStart(), t = todayS();
   let k = t > st ? Math.ceil(daysBetween(st, t) / 14) : 0;
@@ -299,20 +302,20 @@ function vShuls() {
     city: (a, b) => (shulCity(a) || 'zz').localeCompare(shulCity(b) || 'zz') || (a.name || '').localeCompare(b.name || '', 'he') }[so];
   if (cmp) T = T.slice().sort(cmp);
   const chip = (k, l) => `<button class="chip ${so === k ? 'on' : ''}" onclick="ui.shSort='${k}';vShuls()">${l}</button>`;
-  $('#main').innerHTML = `<div class="row"><div><h2>שולן</h2><p class="sub">יעדע צווייטע מיטוואך קומט ארויף די קומענדיגע שול אויף דער ליסטע (לויט דער ריי). ביי יעדן נדבן קען מען אויסקלייבן אין וועלכע שול מ'האט אים געטראפן.</p></div><div class="spacer"></div>
-   <button class="btn ghost" onclick="shulStartForm()">📅 Started: ${fmtD(shulStart())}</button><label class="btn ghost">📥 Import Excel<input type="file" accept=".xlsx" hidden onchange="shulImport(this.files[0]);this.value=''"></label><button class="btn ghost" onclick="shulXls()">⬇ Excel</button><button class="btn gold" onclick="shulForm()">+ New shul</button></div>
+  $('#main').innerHTML = `<div class="row"><div><h2>שולן</h2><p class="sub">${shulRotOn() ? 'יעדע צווייטע מיטוואך קומט ארויף די קומענדיגע שול אויף דער ליסטע (לויט דער ריי). ' : ''}ביי יעדן נדבן קען מען אויסקלייבן אין וועלכע שול מ'האט אים געטראפן.</p></div><div class="spacer"></div>
+   <button class="btn ghost" onclick="shulRotToggle()" title="Every second Wednesday, the next shul on the list">📅 Wednesday rotation: <b>${shulRotOn() ? 'On' : 'Off'}</b></button>${shulRotOn() ? `<button class="btn ghost" onclick="shulStartForm()">📅 Started: ${fmtD(shulStart())}</button>` : ''}<label class="btn ghost">📥 Import Excel<input type="file" accept=".xlsx" hidden onchange="shulImport(this.files[0]);this.value=''"></label><button class="btn ghost" onclick="shulXls()">⬇ Excel</button><button class="btn gold" onclick="shulForm()">+ New shul</button></div>
   ${sch.length ? `<div class="banner">🕍 <div><b>${sch[0].date === todayS() ? 'היינט' : 'קומענדיגע מיטוואך, ' + fmtDual(sch[0].date)}</b>: <b class="big">${esc(sch[0].s.name)}</b><br><span class="ltr">${esc(sch[0].s.addr || '')}</span> ${sch[0].s.addr ? `<a class="name" style="font-size:13px" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(sch[0].s.addr)}">🗺️ מאפע</a>` : ''}</div></div>` : ''}
-  <div class="cols shcols"><div><h3>אלע שולן (די ריי)</h3>
+  <div class="cols shcols${shulRotOn() ? '' : ' norot'}"><div><h3>אלע שולן (די ריי)</h3>
    <div class="row" style="margin:0 0 8px;flex-wrap:wrap"><input class="search" placeholder="🔍 Search…" value="${esc(ui.shQ || '')}" oninput="ui.shQ=this.value;clearTimeout(window._shT);window._shT=setTimeout(()=>{vShuls();const e=document.querySelector('#main input.search');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},250)" style="flex:1;min-width:180px">
     <span class="sub" style="margin:0">Sort:</span>${chip('ord', 'די ריי')}${chip('heb', 'א-ב')}${chip('eng', 'A-Z')}${chip('zip', 'Zip')}${chip('city', 'City')}<span class="sub" style="margin:0">${T.length} שולן</span></div>
-   <table><thead><tr><th>#</th><th>שול</th><th>Zip</th><th>רב / טעלעפאן</th><th>נדבנים</th><th>קומענדיג</th><th></th></tr></thead><tbody>
+   <table><thead><tr><th>#</th><th>שול</th><th>Zip</th><th>רב / טעלעפאן</th><th>נדבנים</th>${shulRotOn() ? '<th>קומענדיג</th>' : ''}<th></th></tr></thead><tbody>
    ${T.map(s => `<tr style="${s.paused ? 'opacity:.5' : ''}"><td class="num">${s._n}</td><td><a class="name" onclick="shulDonors('${s.id}')">${esc(s.name)}</a>${s.eng && s.eng !== s.name ? ` <small class="dim ltr">${esc(s.eng)}</small>` : ''}${s.nusach ? ` <span class="tag gray">${esc(s.nusach)}</span>` : ''}${s.paused ? ' <span class="tag gray">אפגעשטעלט</span>' : ''}<br><span class="ltr" style="font-size:12px;color:var(--muted)">${esc(s.addr || '')}</span>${s.notes ? `<div class="sub" style="margin:2px 0 0">${esc(s.notes)}</div>` : ''}</td>
     <td class="num" style="font-size:13px">${esc(shulZip(s))}<br><small class="dim">${esc(shulCity(s))}</small></td>
     <td style="font-size:13px">${esc(s.rabbi || '')}${s.phone ? `<br><span class="phn">${callBtn(s.phone)} ${esc(s.phone)}</span>` : ''}</td>
-    <td class="num">${(stats[s.id] || {}).n || 0}<br><small class="dim">${money((stats[s.id] || {}).t || 0)}</small></td><td style="font-size:13px">${s.paused ? '' : fmtD(nextOf(s.id))}</td>
+    <td class="num">${(stats[s.id] || {}).n || 0}<br><small class="dim">${money((stats[s.id] || {}).t || 0)}</small></td>${shulRotOn() ? `<td style="font-size:13px">${s.paused ? '' : fmtD(nextOf(s.id))}</td>` : ''}
     <td><div class="acts">${so === 'ord' && !(ui.shQ || '').trim() ? `<button class="btn ghost sm" title="ארויף" onclick="shulMove('${s.id}',-1)">▲</button><button class="btn ghost sm" title="אראפ" onclick="shulMove('${s.id}',1)">▼</button>` : ''}<button class="btn ghost sm" onclick="shulForm('${s.id}')">Edit</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty">נאך קיין שולן – דריקט "+ נייע שול"</td></tr>'}
    </tbody></table></div>
-  <div><h3>מיטוואכן</h3><table><tbody>${sch.map(v => `<tr><td style="white-space:nowrap">${fmtDual(v.date)}</td><td><b>${esc(v.s.name)}</b></td></tr>`).join('') || '<tr><td class="empty">—</td></tr>'}</tbody></table></div></div>`;
+  <div${shulRotOn() ? '' : ' style="display:none"'}><h3>מיטוואכן</h3><table><tbody>${sch.map(v => `<tr><td style="white-space:nowrap">${fmtDual(v.date)}</td><td><b>${esc(v.s.name)}</b></td></tr>`).join('') || '<tr><td class="empty">—</td></tr>'}</tbody></table></div></div>`;
 }
 function shulForm(id) {
   const x = id ? S.shul[id] : { name: '', addr: '', notes: '', paused: false };
@@ -334,6 +337,12 @@ async function shulSave(id) {
   if (!id) { p.ord = Math.max(0, ...shulList().map(s => s.ord || 0)) + 1; if (!SET().shulStart) await emit('settings', 's', { shulStart: shulStart() }); }
   await emit('shul', id || uid(), p);
   closeM(); render(); toast('✓ Saved');
+}
+async function shulRotToggle() {
+  const on = !shulRotOn();
+  if (on && !confirm('Turn on the Wednesday rotation? Every second Wednesday the next shul on the list comes up.')) return;
+  await emit('settings', 's', Object.assign({ shulRot: on }, on && !SET().shulStart ? { shulStart: shulStart() } : {}));
+  render(); toast(on ? '✓ Rotation on' : '✓ Rotation off');
 }
 async function shulDel(id) { if (!confirm('אויסמעקן די שול?')) return; await emit('shul', id, { del: true }); closeM(); render(); }
 async function shulMove(id, dir) {

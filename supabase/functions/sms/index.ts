@@ -330,6 +330,7 @@ async function answer(text: string, member: any): Promise<string> {
     return 'פלעדזשעס (' + L.length + '):\n' + L.slice(0, 8).map(([c, g]) => { const a = C.IDX.by.get(c); return '• ' + nm(a) + ' ' + money(g.dueNow) + (a.ph[0] ? ' ' + a.ph[0][1] : ''); }).join('\n');
   }
   if (cmd === 'shul' && rest) return shulInfo(rest);
+  if (cmd === 'shul' && SET().shulRot !== true) return 'די ריי פון מיטוואכן איז אפגעשטעלט.\nשיקט: שול נאמען – פאר אינפא פון א שול';
   if (cmd === 'shul') {
     const L = Object.entries(C.S.shul).filter(([, x]: any) => !x.del && !x.paused).map(([id, x]: any) => ({ id, ...x })).sort((a: any, b: any) => (a.ord || 0) - (b.ord || 0));
     if (!L.length) return 'קיין שולן';
