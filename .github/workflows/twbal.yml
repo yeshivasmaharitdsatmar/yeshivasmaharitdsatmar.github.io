@@ -1,0 +1,16 @@
+# Every 3 hours: ask the Supabase Edge Function "sms" to check the Twilio balance. When it is at or below the line
+# (setting twLowAt, default $0.50) the admins get one e-mail; it sends again only after the balance went back up.
+name: twilio balance check
+on:
+  schedule:
+    - cron: '41 */3 * * *'
+  workflow_dispatch:
+jobs:
+  balance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Call the sms function
+        run: |
+          URL=$(grep -oE "url: *'[^']+'" config.js | sed -E "s/url: *'([^']+)'/\1/")
+          curl -sS -m 60 "$URL/functions/v1/sms?balance=1"; echo

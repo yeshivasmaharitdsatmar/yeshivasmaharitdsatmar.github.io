@@ -284,11 +284,41 @@ async function textillionOk(req: Request, raw: string) {
 // 📵 STOP / START (owner, v1.68): Twilio itself handles the opt-out and sends the confirmation; we only e-mail the
 // admins (team.is_admin) who did it, so the office knows. Sent through Gmail like the other functions.
 const OPT_STOP = /^(stop|stopall|unsubscribe|cancel|end|quit|revoke|optout)$/i, OPT_START = /^(start|unstop|yes)$/i;
+async function mailAdmins(subject: string, html: string) {
+  const gUser = ENV('GMAIL_USER'), gPass = ENV('GMAIL_APP_PASSWORD').replace(/\s+/g, ''); if (!gUser || !gPass) throw new Error('no Gmail secrets');
+  const team = await (await rest('/rest/v1/team?select=email,name,is_admin')).json();
+  const to = team.filter((t: any) => t.is_admin && t.email).map((t: any) => t.email).join(', '); if (!to) throw new Error('no admin e-mail');
+  const nodemailer = (await import('npm:nodemailer@6.9.16')).default;
+  const tr = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: gUser, pass: gPass }, connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 15000 });
+  await tr.sendMail({ from: ENV('EMAIL_FROM') || 'YG Fund <' + gUser + '>', to, subject, html });
+}
+// 💰 low Twilio balance (owner, v1.69): GET ?balance=1 (every 3 hours from .github/workflows/twbal.yml) reads the
+// balance with the account SID (secret TWILIO_ACCOUNT_SID, else remembered from the last Twilio webhook as setting
+// `twSid`) + TWILIO_AUTH_TOKEN, and e-mails the admins once when it is at or below setting `twLowAt` (default $0.50);
+// `twLowSent` keeps it to one e-mail until the balance is above the line again.
+const BY_AUTO = '⏰ אויטאמאטיש';
+async function balanceCheck() {
+  await load();
+  const st = SET(), sid = ENV('TWILIO_ACCOUNT_SID') || st.twSid || '', tok = ENV('TWILIO_AUTH_TOKEN');
+  if (!sid || !tok) return { error: 'no account SID yet (text the bot once) or no TWILIO_AUTH_TOKEN' };
+  const r = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Balance.json', { headers: { Authorization: 'Basic ' + btoa(sid + ':' + tok) } });
+  if (!r.ok) return { error: 'Twilio ' + r.status };
+  const b = await r.json(), bal = +b.balance, line = st.twLowAt != null && st.twLowAt !== '' ? +st.twLowAt : 0.5;
+  if (bal <= line && !st.twLowSent) {
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6"><p><b>💰 דער באלאנס ביי Twilio (דער SMS באט) איז נידעריג: <span dir="ltr">$${bal.toFixed(2)}</span></b></p>
+      <p>ווען דער באלאנס ווערט 0, הערט דער SMS באט אויף צו ענטפערן.</p>
+      <p>צו צולייגן געלט: <a href="https://console.twilio.com/us1/billing/manage-billing/billing-overview">Twilio &gt; Billing</a> &gt; <b>Add funds</b>.</p>
+      <p style="color:#888;font-size:12px">דאס אימעיל קומט איין מאל. ווען דער באלאנס גייט ווידער העכער $${line.toFixed(2)} און פאלט נאכאמאל, קומט ווידער איינס.</p></div>`;
+    await mailAdmins('💰 Twilio באלאנס נידעריג: $' + bal.toFixed(2), html);
+    await addEvents([{ k: 'settings', eid: 's', p: { twLowSent: true, twLowMailAt: new Date().toISOString() } }], BY_AUTO);
+    C.S.settings.s = Object.assign(C.S.settings.s || {}, { twLowSent: true });
+    return { balance: bal, line, mailed: true };
+  }
+  if (bal > line && st.twLowSent) { await addEvents([{ k: 'settings', eid: 's', p: { twLowSent: false } }], BY_AUTO); C.S.settings.s.twLowSent = false; }
+  return { balance: bal, line, mailed: false };
+}
 async function optMail(kind: 'STOP' | 'START', from: string, m: any) {
   try {
-    const gUser = ENV('GMAIL_USER'), gPass = ENV('GMAIL_APP_PASSWORD').replace(/\s+/g, ''); if (!gUser || !gPass) return;
-    const team = await (await rest('/rest/v1/team?select=email,name,is_admin')).json();
-    const to = team.filter((t: any) => t.is_admin && t.email).map((t: any) => t.email).join(', '); if (!to) return;
     const when = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' }).format(new Date());
     const d = digits10(from), ph = d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : from;
     const who = m ? m.name : 'א נומער וואס איז נישט אין די באניצערס';
@@ -297,9 +327,7 @@ async function optMail(kind: 'STOP' | 'START', from: string, m: any) {
     const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6"><p><b>${stop ? '📵 איינער האט געשיקט STOP צום SMS באט' : '✅ איינער האט געשיקט START צום SMS באט'}</b></p>
       <p>ווער: <b>${who.replace(/[<>&]/g, '')}</b><br>טעלעפאן: <span dir="ltr">${ph}</span><br>ווען: <span dir="ltr">${when}</span></p>
       <p style="color:#666">${stop ? 'פון יעצט באקומט דער נומער נישט מער קיין מעסעדזשעס פונעם באט. צו אנהייבן ווידער, דארף ער שיקן START.' : 'דער נומער באקומט ווידער ענטפערס פונעם באט.'}</p></div>`;
-    const nodemailer = (await import('npm:nodemailer@6.9.16')).default;
-    const tr = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: gUser, pass: gPass }, connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 15000 });
-    await tr.sendMail({ from: ENV('EMAIL_FROM') || 'YG Fund <' + gUser + '>', to, subject, html });
+    await mailAdmins(subject, html);
   } catch (e) { console.error('opt-out mail', String((e as any)?.message || e)); }
 }
 const txSeen = new Set<string>();   // the same event can arrive twice (retries): answer once while warm
@@ -313,6 +341,10 @@ const xml = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;'
 const twiml = (msg?: string) => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + (msg ? '<Message>' + xml(msg) + '</Message>' : '') + '</Response>', { headers: { 'Content-Type': 'text/xml' } });
 
 async function handle(req: Request): Promise<Response> {
+  if (req.method === 'GET' && new URL(req.url).searchParams.get('balance') === '1') {
+    try { return new Response(JSON.stringify(await balanceCheck()), { headers: { 'Content-Type': 'application/json' } }); }
+    catch (e) { return new Response(JSON.stringify({ error: String((e as any)?.message || e) }), { status: 500, headers: { 'Content-Type': 'application/json' } }); }
+  }
   if (req.method !== 'POST') return new Response(JSON.stringify({ app: 'YG Fund SMS', textillion: { apiKey: ENV('TEXTILLION_API_KEY') ? 'set' : 'missing', webhookSecret: ENV('TEXTILLION_WEBHOOK_SECRET') ? 'set' : 'missing' }, telnyx: ENV('TELNYX_API_KEY') ? 'set' : 'missing', twilio: ENV('TWILIO_AUTH_TOKEN') ? 'set' : 'missing' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   const raw = await req.text(), ct = req.headers.get('content-type') || '';
   try {
@@ -325,6 +357,8 @@ async function handle(req: Request): Promise<Response> {
       if (ot === 'START' || OPT_START.test(word)) { await optMail('START', params.get('From') || '', m); return twiml(); }
       if (!m) return twiml();                                          // not on the team: no answer
       await load();
+      const asid = params.get('AccountSid') || '';
+      if (/^AC[0-9a-f]{32}$/.test(asid) && SET().twSid !== asid) { await addEvents([{ k: 'settings', eid: 's', p: { twSid: asid } }], BY_AUTO); C.S.settings.s = Object.assign(C.S.settings.s || {}, { twSid: asid }); }
       return twiml(clip(await answer(params.get('Body') || '', m)));
     }
     if (req.headers.get('x-textillion-signature')) {                  // ---- Textillion
