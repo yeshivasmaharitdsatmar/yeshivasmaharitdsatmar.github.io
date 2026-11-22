@@ -281,6 +281,27 @@ async function textillionOk(req: Request, raw: string) {
   let d = 0; for (let i = 0; i < hex.length; i++) d |= hex.charCodeAt(i) ^ v1.charCodeAt(i);
   return d === 0;
 }
+// 📵 STOP / START (owner, v1.68): Twilio itself handles the opt-out and sends the confirmation; we only e-mail the
+// admins (team.is_admin) who did it, so the office knows. Sent through Gmail like the other functions.
+const OPT_STOP = /^(stop|stopall|unsubscribe|cancel|end|quit|revoke|optout)$/i, OPT_START = /^(start|unstop|yes)$/i;
+async function optMail(kind: 'STOP' | 'START', from: string, m: any) {
+  try {
+    const gUser = ENV('GMAIL_USER'), gPass = ENV('GMAIL_APP_PASSWORD').replace(/\s+/g, ''); if (!gUser || !gPass) return;
+    const team = await (await rest('/rest/v1/team?select=email,name,is_admin')).json();
+    const to = team.filter((t: any) => t.is_admin && t.email).map((t: any) => t.email).join(', '); if (!to) return;
+    const when = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'numeric', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' }).format(new Date());
+    const d = digits10(from), ph = d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : from;
+    const who = m ? m.name : 'א נומער וואס איז נישט אין די באניצערס';
+    const stop = kind === 'STOP';
+    const subject = (stop ? '📵 STOP' : '✅ START') + ' אויפן SMS באט – ' + (m ? m.name : ph);
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6"><p><b>${stop ? '📵 איינער האט געשיקט STOP צום SMS באט' : '✅ איינער האט געשיקט START צום SMS באט'}</b></p>
+      <p>ווער: <b>${who.replace(/[<>&]/g, '')}</b><br>טעלעפאן: <span dir="ltr">${ph}</span><br>ווען: <span dir="ltr">${when}</span></p>
+      <p style="color:#666">${stop ? 'פון יעצט באקומט דער נומער נישט מער קיין מעסעדזשעס פונעם באט. צו אנהייבן ווידער, דארף ער שיקן START.' : 'דער נומער באקומט ווידער ענטפערס פונעם באט.'}</p></div>`;
+    const nodemailer = (await import('npm:nodemailer@6.9.16')).default;
+    const tr = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: gUser, pass: gPass }, connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 15000 });
+    await tr.sendMail({ from: ENV('EMAIL_FROM') || 'YG Fund <' + gUser + '>', to, subject, html });
+  } catch (e) { console.error('opt-out mail', String((e as any)?.message || e)); }
+}
 const txSeen = new Set<string>();   // the same event can arrive twice (retries): answer once while warm
 async function memberFor(from: string) {
   const team = await (await rest('/rest/v1/team?select=*')).json();
@@ -299,6 +320,9 @@ async function handle(req: Request): Promise<Response> {
       const params = new URLSearchParams(raw);
       if (!(await twilioOk(req, params))) return new Response('forbidden', { status: 403 });
       const m = await memberFor(params.get('From') || '');
+      const word = (params.get('Body') || '').trim(), ot = (params.get('OptOutType') || '').toUpperCase();
+      if (ot === 'STOP' || OPT_STOP.test(word)) { await optMail('STOP', params.get('From') || '', m); return twiml(); }   // Twilio answers STOP itself
+      if (ot === 'START' || OPT_START.test(word)) { await optMail('START', params.get('From') || '', m); return twiml(); }
       if (!m) return twiml();                                          // not on the team: no answer
       await load();
       return twiml(clip(await answer(params.get('Body') || '', m)));
