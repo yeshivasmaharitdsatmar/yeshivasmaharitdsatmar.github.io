@@ -15,7 +15,7 @@ const validD = s => s && s >= '1990-01-01' && s <= '2100-01-01';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 3200); }
-// 📌 table headers stay on screen while scrolling (owner, v1.67): they stick right under the page header, whose height
+// 📌 table headers stay on screen while scrolling (owner, v1.70): they stick right under the page header, whose height
 // is kept in the CSS variable --hdr
 function hdrVar() { const h = document.querySelector('header'); if (h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); }
 window.addEventListener('resize', hdrVar); window.addEventListener('load', hdrVar); setTimeout(hdrVar, 500); setInterval(hdrVar, 3000);
@@ -73,7 +73,7 @@ function applyEvent(ev) {
     if (ev.p && ev.p.del) { HIST_DEL.add(ev.id); delete S.hist[ev.id]; }
   }
 }
-// ✏️ edit / delete a note (owner, v1.67): only who wrote it, or an admin; the log keeps every version
+// ✏️ edit / delete a note (owner, v1.70): only who wrote it, or an admin; the log keeps every version
 const HIST_DEL = new Set();
 const histCan = h => !!h && !h.res && (h.by === me || isAdmin());
 function histBtns(id, back) {
@@ -115,7 +115,7 @@ async function pullLog() {
   }
   return changed;
 }
-// Download a JLS data file always fresh (v1.67.1): the files used to be saved with Supabase's default 1-hour cache, so
+// Download a JLS data file always fresh (v1.70.1): the files used to be saved with Supabase's default 1-hour cache, so
 // another user's browser could show the old numbers for up to an hour after an import.
 async function jlsFile(path) {
   try {
@@ -144,7 +144,7 @@ function hebLast(a) {
   const lh = a.lh || (a.h ? a.h.trim().split(/\s+/).pop() : '');
   return lh ? '0' + lh + ' ' + (a.h || '') : '1' + (a.ln || a.n || '').toLowerCase() + ' ' + (a.n || '').toLowerCase();
 }
-// 🔍 Search that understands both keyboards (v1.67, owner): text typed with the keyboard on Hebrew/Yiddish while
+// 🔍 Search that understands both keyboards (v1.70, owner): text typed with the keyboard on Hebrew/Yiddish while
 // meaning English letters ("יקךךם" = "hello"), or English letters while meaning Yiddish ("nav" = "מאה"), is also tried through the other layout (standard Israeli layout). Niqqud and Yiddish ligatures
 // (ײ װ ױ) are ignored. qVars(raw) = the normalised text + its swapped twin; every search box tries both.
 const KB_PAIRS = "q/w'eקrרtאyטuוiןoםpפaשsדdגfכgעhיjחkלlךzזxסcבvהbנmצ;ף,ת.ץnמ";
@@ -501,7 +501,7 @@ function wire() {
 function setArea(a, keepView) {
   AREA = a; try { sessionStorage.setItem('yg_area', a); } catch (e) { }
   document.body.classList.toggle('area-tu', a === 'tu');
-  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.67</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.67</small>';
+  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.70</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.70</small>';
   $('#btnArea').style.display = canFund() && canView('tuition') ? '' : 'none';
   $('#btnArea').textContent = a === 'tu' ? '⇄ צו פאנדרעיזינג' : '⇄ צו שכר לימוד';
   setupUser();
@@ -821,11 +821,11 @@ function openAcct(code) {
   <div class="tabs2">${[['pay', 'באצאלונגען'], ['pl', 'פלעדזשעס'], ['hist', 'היסטאריע (' + hist.length + ')'], ['tasks', 'ארבעטן (' + tasks.filter(t => !t[1].done).length + ')']].map(([kk, l]) => `<button class="${acctTab === kk ? 'on' : ''}" onclick="acctTab='${kk}';openAcct(${code})">${l}</button>`).join('')}</div>
   <div class="scroll">${tabBody[acctTab]}</div>`);
 }
-// 🎯 donor goal (owner, v1.67): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
+// 🎯 donor goal (owner, v1.70): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
 // The e-mail and the personal page (goal.html?t=tok) are built by the Supabase function "goal"; it also sends the
 // automatic e-mails every 2 weeks and the 🎉 e-mail when the goal is reached.
 const goalOf = c => (S.acct[c] || {}).goal || null;
-// owner (v1.67): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
+// owner (v1.70): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
 function goalHY(iso) { const p = HEB.parts(iso); return !p ? 0 : /^Tishri/.test(p.m) && p.d <= 23 ? p.y - 1 : p.y; }
 function goalCalc(c) {
   const g = goalOf(c); if (!g || !(+g.amt > 0)) return null;
@@ -891,7 +891,7 @@ async function goalSend(c) {
   try { await goalCall({ action: 'send', code: c, to, subject: $('#gms').value, note: $('#gmn').value, cc: $('#gmc').value.trim(), by: me }); busy(false); await pullLog(); toast('✓ ✉️ ' + to); openAcct(c); }
   catch (e) { busy(false); $('#gmgo').disabled = false; toast('⚠️ ' + (e.message || e)); }
 }
-// 💳 On the account (owner, v1.67): active credit-card plans (JD.ccplans, schedule columns only) and held /
+// 💳 On the account (owner, v1.70): active credit-card plans (JD.ccplans, schedule columns only) and held /
 // post-dated checks (YG payments whose check date is still ahead) – the same things plCovered() looks at.
 function acctFuture(code) {
   const t = todayS(), camp = n => (JD.campaigns || {})[n] || (n ? '#' + n : '');
@@ -913,7 +913,7 @@ function acctFuture(code) {
 }
 async function saveAcct(code) {
   await emit('acct', code, { freq: $('#af').value, nextAsk: $('#an').value, assigned: $('#aa').value, vip: !!$('#av').value, notes: $('#ao').value, shul: $('#ash').value, email: $('#aem').value.trim().toLowerCase() === ((IDX.by.get(code) || {}).em || [])[0] ? '' : $('#aem').value.trim().toLowerCase() });
-  closeM(); render(); toast('✓ Saved');   // owner (v1.67): Save closes the account window
+  closeM(); render(); toast('✓ Saved');   // owner (v1.70): Save closes the account window
 }
 async function addNote(code) {
   const t = $('#hn').value.trim(); if (!t) return;
@@ -922,7 +922,7 @@ async function addNote(code) {
 
 // ---------- REPORTS ----------
 // Payments by Jewish year and month (refunds left out)
-// Years are shown only up to the current Jewish year (owner, v1.67): no next year from post-dated payments,
+// Years are shown only up to the current Jewish year (owner, v1.70): no next year from post-dated payments,
 // scheduled credit-card charges or bills already entered for later.
 const curHY = () => (HEB.parts(todayS()) || {}).y || 9999;
 function hebYears() {
@@ -1067,7 +1067,7 @@ function vSettings() {
   $('#main').innerHTML = `<div dir="ltr" style="text-align:left"><h2>Settings</h2><p class="sub">Only the admin sees this page.</p>
   <div class="cols"><div class="box"><h3 style="margin-top:0">Users</h3>
    <p class="sub">Only the e-mails on this list can log in. To add a user: add the e-mail here; the user opens the website, clicks <b>"ערשטע מאל דא?"</b> and makes a password.</p>
-   <table><thead><tr><th style="text-align:left">Name</th><th style="text-align:left">E-mail</th><th style="text-align:left">📱 Cell phone (SMS)</th><th>Admin</th><th>Colour</th><th style="text-align:left">🔒 Access</th><th></th></tr></thead><tbody id="ulist">
+   <table><thead><tr><th style="text-align:left">Name</th><th style="text-align:left">E-mail</th><th style="text-align:left">📱 Cell phone (SMS)</th><th>Admin</th><th>Colour</th><th title="SMS answers with tuition (שכר לימוד) info">🎓 SMS</th><th style="text-align:left">🔒 Access</th><th></th></tr></thead><tbody id="ulist">
    ${TEAM.map(t => urow(t)).join('')}</tbody></table>
    <div class="row" style="margin-top:10px"><button class="btn ghost sm" onclick="addURow()">+ New user</button><div class="spacer"></div><button class="btn" onclick="saveUsers()">Save users</button></div>
    <div id="uerr" class="bal" style="font-size:13px"></div>
@@ -1094,7 +1094,7 @@ function vSettings() {
 function urow(t) {
   t = t || { email: '', name: '', is_admin: false };
   const pv = Array.isArray(t.perms) ? t.perms : null;
-  return `<tr data-old="${esc(t.email)}" data-perms="${esc(pv ? JSON.stringify(pv) : '')}"><td><input class="un" value="${esc(t.name)}" style="width:100%"></td><td><input class="ue" type="email" value="${esc(t.email)}" style="width:100%;direction:ltr"></td><td><input class="up" type="tel" value="${esc(t.phone || '')}" placeholder="845-555-1234" style="width:100%;direction:ltr"></td><td style="text-align:center"><input class="ua" type="checkbox" ${t.is_admin ? 'checked' : ''}></td><td style="text-align:center"><input class="ucl" type="color" value="${t.name ? userColor(t.name) : '#2f6fd6'}" style="width:38px;height:28px;padding:0;border:none;background:none"></td><td><button class="btn ghost sm upb" onclick="permForm(this.closest('tr'))">${permLabel(pv)}</button></td><td><button class="btn red sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+  return `<tr data-old="${esc(t.email)}" data-perms="${esc(pv ? JSON.stringify(pv) : '')}"><td><input class="un" value="${esc(t.name)}" style="width:100%"></td><td><input class="ue" type="email" value="${esc(t.email)}" style="width:100%;direction:ltr"></td><td><input class="up" type="tel" value="${esc(t.phone || '')}" placeholder="845-555-1234" style="width:100%;direction:ltr"></td><td style="text-align:center"><input class="ua" type="checkbox" ${t.is_admin ? 'checked' : ''}></td><td style="text-align:center"><input class="ucl" type="color" value="${t.name ? userColor(t.name) : '#2f6fd6'}" style="width:38px;height:28px;padding:0;border:none;background:none"></td><td style="text-align:center"><input class="ust" type="checkbox" title="SMS answers with tuition (שכר לימוד) info" ${t.name && ((SET() || {}).smsTu || {})[t.name] ? 'checked' : ''}></td><td><button class="btn ghost sm upb" onclick="permForm(this.closest('tr'))">${permLabel(pv)}</button></td><td><button class="btn red sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
 }
 const FUND_SECTIONS = () => SECTIONS.filter(([v]) => v !== 'tuition');
 const permLabel = pv => {
@@ -1162,7 +1162,8 @@ async function saveUsers() {
       for (const [id, t] of Object.entries(S.task)) { if (t.who === o) await emitTask(id, { who: n }); if (t.who2 === o) await emitTask(id, { who2: n }); }
     }
     const uc = {}; rows.forEach(r => { const n = r.querySelector('.un').value.trim(), c = r.querySelector('.ucl'); if (n && c) uc[n] = c.value; });
-    await emit('settings', 's', { ucol: uc });
+    const stu = {}; rows.forEach(r => { const n = r.querySelector('.un').value.trim(), c = r.querySelector('.ust'); if (n && c && c.checked) stu[n] = true; });
+    await emit('settings', 's', { ucol: uc, smsTu: stu });
     await loadTeam(); setupUser(); render(); toast('✓ Users saved');
   } catch (e) { err(e.message || String(e)); }
 }
@@ -1206,7 +1207,7 @@ function closeM() { $('#ov').classList.remove('on'); }
 
 const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
 window.addEventListener('resize', setHH); window.addEventListener('load', setHH); setHH();
-// ---------- 🔄 new version on the website: update by itself (v1.67) ----------
+// ---------- 🔄 new version on the website: update by itself (v1.70) ----------
 // Every minute the page asks the server for index.html and compares <meta name="app-version">. When it changed:
 // if nobody is in the middle of something (no window open, not typing, no mouse/keys for 20 s) the page reloads by
 // itself and comes back to the same page; otherwise a small "🔄 נייע ווערסיע" button waits for a click.

@@ -114,18 +114,18 @@ async function addEvents(rows: any[], by: string) {
 }
 
 // ---------- find a donor by name / phone / #number ----------
-function find(q: string) {
+function find(q: string, only?: Map<number, any>) {
   q = q.trim().toLowerCase();
   const num = q.replace(/^#/, '');
-  if (/^\d{1,7}$/.test(num) && C.IDX.by.has(+num)) return [C.IDX.by.get(+num)];
+  if (/^\d{1,7}$/.test(num) && C.IDX.by.has(+num) && (!only || only.has(+num))) return [C.IDX.by.get(+num)];
   const words = q.split(/\s+/).filter(Boolean), qd = q.replace(/\D/g, '');
-  let L = C.JD.accounts.filter((a: any) => (words.length && words.every(w => a._s.includes(w))) || (qd.length >= 7 && a._s.includes(qd)));
+  let L = C.JD.accounts.filter((a: any) => (!only || only.has(a.c)) && ((words.length && words.every(w => a._s.includes(w))) || (qd.length >= 7 && a._s.includes(qd))));
   L.sort((x: any, y: any) => ((C.IDX.yg.get(y.c) || {}).total || 0) - ((C.IDX.yg.get(x.c) || {}).total || 0));
   return L;
 }
-function pickOne(q: string): { a?: any, msg?: string } {
+function pickOne(q: string, only?: Map<number, any>): { a?: any, msg?: string } {
   if (!q.trim()) return { msg: 'שרייבט א נאמען נאכן ווארט.' };
-  const L = find(q);
+  const L = find(q, only);
   if (!L.length) return { msg: 'נישט געפונען: ' + q };
   if (L.length === 1) return { a: L[0] };
   // exact Hebrew/English full-name match wins
@@ -147,6 +147,8 @@ const CMDS: [string[], string][] = [
   [['טאדו', 'טודו', 'todo', 'td', '+'], 'todo'],
   [['נאטיץ', 'note', 'n'], 'note'],
   [['שול', 'shul'], 'shul'],
+  [['תלמידים', 'תלמיד', 'students', 'kids'], 'students'],
+  [['באצאלט', 'paid'], 'given'],
   [['הילף', 'help', '?', 'h'], 'help']
 ];
 const HELP = 'YG Fund SMS:\n' +
@@ -162,9 +164,103 @@ const HELP = 'YG Fund SMS:\n' +
   'נאטיץ נאמען: טעקסט\n' +
   'שול';
 
+// ---------- 🎓 tuition mode (owner, v1.70) ----------
+// A team member whose name is checked in Settings > users "🎓 SMS" (setting smsTu {name: true}), or whose access is
+// tuition only (team.perms = ['tuition']), gets tuition (שכר לימוד) answers: families from jls/jls-tuition.json.gz.
+// Balance the JLS way: all bills not on hold − all payments not refunded (credit = negative).
+const isTuMember = (m: any) => !!(SET().smsTu || {})[m.name] || (Array.isArray(m.perms) && m.perms.length > 0 && m.perms.every((p: string) => p === 'tuition'));
+async function loadTU() {
+  if (C.TU && C.TUver === C.jlsVer) return;
+  let r: Response;
+  try { r = await rest('/storage/v1/object/jls/jls-tuition.json.gz'); }
+  catch (_) { C.TU = { payments: [], charges: [], students: [] }; C.TUF = new Map(); C.TUver = C.jlsVer; return; }
+  const blob = await r.blob();
+  C.TU = JSON.parse(await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text());
+  const F = new Map<number, any>(), G = (c: number) => F.get(c) || (F.set(c, { ch: [], pay: [], kids: [] }), F.get(c));
+  (C.TU.charges || []).forEach((c: any) => G(+c[1]).ch.push(c));
+  (C.TU.payments || []).forEach((p: any) => G(+p[1]).pay.push(p));
+  (C.TU.students || []).forEach((k: any) => G(+k[1]).kids.push(k));
+  C.TUF = F; C.TUver = C.jlsVer;
+}
+function tuFam(code: number) {
+  const f = C.TUF.get(code) || { ch: [], pay: [], kids: [] }, today = todayS();
+  let bills = 0, billsDue = 0, paid = 0, last: any = null;
+  for (const c of f.ch) { if (c[7]) continue; bills += +c[3] || 0; if (c[2] && c[2] <= today) billsDue += +c[3] || 0; }
+  for (const p of f.pay) { if (p[7]) continue; paid += +p[3] || 0; if (p[2] && p[2] <= today && (!last || p[2] > last[2])) last = p; }
+  const bal = Math.round((bills - paid) * 100) / 100;
+  let due = Math.round((billsDue - paid) * 100) / 100; if (due < 0) due = Math.max(due, Math.min(bal, 0));
+  return { f, bal, due, last };
+}
+const tuBalTxt = (n: number) => n < -0.004 ? 'קרעדיט ' + money(-n) : money(n);
+const TUHELP = 'YG Fund SMS – שכר לימוד:\n' +
+  'נאמען - אלע אינפא\n' +
+  'טעלעפאן נאמען\n' +
+  'אדרעס נאמען\n' +
+  'באלאנס נאמען\n' +
+  'געגעבן נאמען - באצאלונגען לעצטע יאר\n' +
+  'תלמידים נאמען\n' +
+  'היינט - מיינע To-Do\n' +
+  'טאדו טעקסט - נייע To-Do\n' +
+  'נאטיץ נאמען: טעקסט';
+async function tuAnswer(cmd: string, rest: string, member: any): Promise<string> {
+  await loadTU();
+  const me = member.name, today = todayS();
+  if (cmd === 'help') return TUHELP;
+  if (cmd === 'todo') {
+    if (!rest) return 'שרייבט: טאדו און וואס צו טון';
+    await addEvents([{ k: 'task', eid: uid(), p: { title: rest, due: today, who: me, who2: '', code: '', pri: 'norm', note: '📱 SMS', repeat: '', done: false, priv: false, area: 'tu', cat: 'proj', from: me, created: new Date().toISOString() } }], me);
+    return '✓ צוגעלייגט צו To-Do: ' + rest;
+  }
+  if (cmd === 'note') {
+    const i = rest.indexOf(':');
+    if (i < 1) return 'שרייבט: נאטיץ נאמען: טעקסט';
+    const r = pickOne(rest.slice(0, i), C.TUF); if (!r.a) return r.msg!;
+    const note = rest.slice(i + 1).trim(); if (!note) return 'וואס איז די נאטיץ?';
+    await addEvents([{ k: 'hist', eid: uid(), p: { code: r.a.c, text: '📱 ' + note, area: 'tu' } }], me);
+    return '✓ נאטיץ ביי ' + nm(r.a);
+  }
+  if (cmd === 'today') {
+    const out: string[] = [];
+    for (const [, x] of Object.entries(C.S.task) as any) {
+      if (!x.title || x.done || x.del || x.area !== 'tu' || (x.due && x.due > today)) continue;
+      if (x.priv && (x.owner || '').toLowerCase() !== member.email.toLowerCase()) continue;
+      if (x.who === me || x.who2 === me) out.push('• ' + x.title);
+    }
+    const mine: string[] = [];
+    for (const [c, st] of Object.entries(C.S.acct) as any) {
+      if (st.tuWho !== me || !C.TUF.has(+c) || !C.IDX.by.has(+c)) continue;
+      const t = tuFam(+c); if (t.due > 0.5) { const a = C.IDX.by.get(+c); mine.push('• ' + nm(a) + ' ' + money(t.due) + (a.ph[0] ? ' ' + a.ph[0][1] : '')); }
+    }
+    if (!out.length && !mine.length) return '🎉 גארנישט פאר היינט';
+    return 'היינט (' + (out.length + mine.length) + '):\n' + out.slice(0, 8).concat(mine.slice(0, 6)).join('\n');
+  }
+  if (['pledges', 'called', 'shul'].includes(cmd)) return TUHELP;
+  const r = pickOne(rest, C.TUF); if (!r.a) return r.msg!;
+  const a = r.a, T = tuFam(a.c);
+  const phones = a.ph.slice(0, 3).map((x: any) => (x[0] ? x[0] + ' ' : '') + x[1]).join('\n') || 'קיין טעלעפאן';
+  const kidsNow = T.f.kids.filter((k: any) => !k[8] || k[8] >= today);
+  const kidTxt = (k: any) => ((k[4] || k[2] || '') + ' ' + (k[5] || k[3] || '')).trim() + (k[6] ? ' (' + k[6] + ')' : '');
+  if (cmd === 'phone') return nm(a) + '\n' + phones;
+  if (cmd === 'address') return nm(a) + '\n' + (a.a || 'קיין אדרעס');
+  if (cmd === 'balance') return nm(a) + '\nבאלאנס: ' + tuBalTxt(T.bal) + (T.due > 0.5 ? '\nפעליג יעצט: ' + money(T.due) : '');
+  if (cmd === 'students') return nm(a) + '\n' + (kidsNow.length ? kidsNow.map(kidTxt).join('\n') : 'קיין תלמידים יעצט');
+  if (cmd === 'given') {
+    const yearAgo = addMonths(today, -12);
+    const L = T.f.pay.filter((p: any) => !p[7] && p[2] && p[2] >= yearAgo && p[2] <= today).sort((x: any, y: any) => y[2].localeCompare(x[2]));
+    if (!L.length) return nm(a) + '\nלעצטע יאר: גארנישט באצאלט' + (T.last ? '\nלעצטע מאל: ' + money(T.last[3]) + ' ' + shortD(T.last[2]) : '');
+    return nm(a) + '\nלעצטע יאר: ' + money(L.reduce((s: number, p: any) => s + (+p[3] || 0), 0)) + ' (' + L.length + ')\n' + L.slice(0, 6).map((p: any) => shortD(p[2]) + ' ' + money(p[3])).join('\n');
+  }
+  const last = Object.values(C.S.hist).filter((h: any) => h.code === a.c).sort((x: any, y: any) => (y.at || '').localeCompare(x.at || ''))[0] as any;
+  return [nm(a) + ' #' + a.c, phones, a.a || '',
+    'באלאנס: ' + tuBalTxt(T.bal) + (T.due > 0.5 ? ' · פעליג יעצט: ' + money(T.due) : ''),
+    T.last ? 'לעצטע באצאלונג: ' + money(T.last[3]) + ' ' + shortD(T.last[2]) : 'קיין באצאלונגען',
+    kidsNow.length ? '🎓 ' + kidsNow.map(kidTxt).join(', ') : '',
+    last ? '💬 ' + String(last.text).slice(0, 60) : ''].filter(Boolean).join('\n');
+}
+
 async function answer(text: string, member: any): Promise<string> {
   const t = text.trim().replace(/\s+/g, ' ');
-  if (!t) return HELP;
+  if (!t) return isTuMember(member) ? TUHELP : HELP;
   let cmd = 'info', rest = t;
   if (t.startsWith('+')) { cmd = 'todo'; rest = t.slice(1); }
   else {
@@ -173,6 +269,7 @@ async function answer(text: string, member: any): Promise<string> {
     if (hit) { cmd = hit[1]; rest = t.slice(first.length); }
   }
   rest = rest.trim();
+  if (isTuMember(member)) return tuAnswer(cmd, rest, member);
   const me = member.name, today = todayS();
   if (cmd === 'help') return HELP;
 
