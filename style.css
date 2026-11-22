@@ -430,3 +430,5 @@ nav.incol #navuser{display:block}
 .cmname.cmlink:hover{border-bottom-color:#f4d48a;border-bottom-style:solid}.cmname.cmlink:hover::after{background:#fff}
 a.name:hover{color:#2a5ba8;border-bottom-style:solid}
 .tupline{font-size:13px;margin:-2px 0 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f7f4ec;border:1px solid #ece4cf;border-radius:10px;padding:5px 10px}.tupsep{color:#bbb}.tupct.old{color:#6b4f00;background:#f6ecd2}
+.shcols{grid-template-columns:minmax(0,1fr) 280px !important}.shcols td{vertical-align:top}@media (max-width:1100px){.shcols{grid-template-columns:1fr !important}}
+.shcols .phn{white-space:nowrap}

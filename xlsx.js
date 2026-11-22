@@ -59,3 +59,35 @@ function xlsx(sheets, name) {
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   toast('⬇ ' + name);
 }
+
+// 📥 Tiny .xlsx reader (v1.71): first sheet → array of rows (arrays of strings/numbers). Unzips with the browser's
+// DecompressionStream('deflate-raw'); reads shared strings, inline strings and numbers.
+async function xlsxRead(file) {
+  const buf = new Uint8Array(await file.arrayBuffer()), dv = new DataView(buf.buffer), files = {};
+  let eocd = -1; for (let i = buf.length - 22; i >= Math.max(0, buf.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('not an .xlsx file');
+  let p = dv.getUint32(eocd + 16, true); const n = dv.getUint16(eocd + 10, true), dec = new TextDecoder();
+  for (let k = 0; k < n; k++) {
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = dec.decode(buf.subarray(p + 46, p + 46 + nl)); p += 46 + nl + xl + cl;
+    const ln = dv.getUint16(off + 26, true), lx = dv.getUint16(off + 28, true), data = buf.subarray(off + 30 + ln + lx, off + 30 + ln + lx + csize);
+    files[name] = { method, data };
+  }
+  const text = async name => { const f = files[name]; if (!f) return ''; if (f.method === 0) return dec.decode(f.data);
+    return await new Response(new Blob([f.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text(); };
+  const xml = s => new DOMParser().parseFromString(s, 'application/xml');
+  const ss = [...xml(await text('xl/sharedStrings.xml') || '<sst/>').getElementsByTagName('si')].map(si => [...si.getElementsByTagName('t')].map(t => t.textContent).join(''));
+  const sheetName = Object.keys(files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort()[0];
+  const doc = xml(await text(sheetName)), rows = [];
+  const col = ref => { let c = 0; for (const ch of ref.replace(/\d+/g, '')) c = c * 26 + ch.charCodeAt(0) - 64; return c - 1; };
+  for (const r of doc.getElementsByTagName('row')) {
+    const row = [];
+    for (const c of r.getElementsByTagName('c')) {
+      const t = c.getAttribute('t'), v = (c.getElementsByTagName('v')[0] || {}).textContent;
+      let val = t === 's' ? ss[+v] : t === 'inlineStr' ? [...c.getElementsByTagName('t')].map(x => x.textContent).join('') : t === 'str' || t === 'b' ? v : v != null && v !== '' && !isNaN(+v) ? +v : v;
+      row[col(c.getAttribute('r') || 'A1')] = val == null ? '' : val;
+    }
+    rows.push(Array.from(row, x => x == null ? '' : x));
+  }
+  return rows;
+}

@@ -162,7 +162,8 @@ const HELP = 'YG Fund SMS:\n' +
   'געקאלט נאמען\n' +
   'טאדו טעקסט - נייע To-Do\n' +
   'נאטיץ נאמען: טעקסט\n' +
-  'שול';
+  'שול - די ריי\n' +
+  'שול נאמען - אינפא פון א שול';
 
 // ---------- 🎓 tuition mode (owner, v1.70) ----------
 // A team member whose name is checked in Settings > users "🎓 SMS" (setting smsTu {name: true}), or whose access is
@@ -234,6 +235,7 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
     if (!out.length && !mine.length) return '🎉 גארנישט פאר היינט';
     return 'היינט (' + (out.length + mine.length) + '):\n' + out.slice(0, 8).concat(mine.slice(0, 6)).join('\n');
   }
+  if (cmd === 'shul' && rest) return shulInfo(rest);
   if (['pledges', 'called', 'shul'].includes(cmd)) return TUHELP;
   const r = pickOne(rest, C.TUF); if (!r.a) return r.msg!;
   const a = r.a, T = tuFam(a.c);
@@ -256,6 +258,23 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
     T.last ? 'לעצטע באצאלונג: ' + money(T.last[3]) + ' ' + shortD(T.last[2]) : 'קיין באצאלונגען',
     kidsNow.length ? '🎓 ' + kidsNow.map(kidTxt).join(', ') : '',
     last ? '💬 ' + String(last.text).slice(0, 60) : ''].filter(Boolean).join('\n');
+}
+
+// 🕍 "שול name" (v1.71): one shul's details – Yiddish/English/short name, address, rabbi, phone, nusach, donors.
+function shulInfo(q: string) {
+  const norm = (x: any) => String(x || '').toLowerCase().replace(/["'״׳\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = norm(q).split(' ').filter(Boolean);
+  const L = Object.entries(C.S.shul).filter(([, x]: any) => !x.del).map(([id, x]: any) => ({ id, ...x }))
+    .filter((s: any) => { const h = norm([s.name, s.eng, s.short, s.addr, s.rabbi].join(' ')); return words.every(w => h.includes(w)); });
+  if (!L.length) return 'קיין שול געפונען: ' + q;
+  if (L.length > 1) {
+    const ex = L.filter((s: any) => [s.name, s.eng, s.short].some(v => norm(v) === norm(q)));
+    if (ex.length !== 1) return L.length + ' שולן:\n' + L.slice(0, 8).map((s: any) => '• ' + s.name + (s.eng && s.eng !== s.name ? ' / ' + s.eng : '') + (s.zip ? ' ' + s.zip : '')).join('\n') + '\nשיקט מיט מער פונעם נאמען';
+    L.splice(0, L.length, ex[0]);
+  }
+  const s: any = L[0], n = Object.values(C.S.acct).filter((a: any) => a.shul === s.id).length;
+  return ['🕍 ' + s.name, s.eng && s.eng !== s.name ? s.eng : '', s.addr || '', s.rabbi ? 'רב: ' + s.rabbi : '', s.phone ? 'טעל: ' + s.phone : '', s.nusach ? 'נוסח: ' + s.nusach : '',
+    n ? n + ' נדבנים' : '', s.paused ? '(אפגעשטעלט)' : '', s.notes ? '📝 ' + s.notes : ''].filter(Boolean).join('\n');
 }
 
 async function answer(text: string, member: any): Promise<string> {
@@ -310,6 +329,7 @@ async function answer(text: string, member: any): Promise<string> {
     if (!L.length) return '✓ אלע פלעדזשעס געקאלט דעם חודש';
     return 'פלעדזשעס (' + L.length + '):\n' + L.slice(0, 8).map(([c, g]) => { const a = C.IDX.by.get(c); return '• ' + nm(a) + ' ' + money(g.dueNow) + (a.ph[0] ? ' ' + a.ph[0][1] : ''); }).join('\n');
   }
+  if (cmd === 'shul' && rest) return shulInfo(rest);
   if (cmd === 'shul') {
     const L = Object.entries(C.S.shul).filter(([, x]: any) => !x.del && !x.paused).map(([id, x]: any) => ({ id, ...x })).sort((a: any, b: any) => (a.ord || 0) - (b.ord || 0));
     if (!L.length) return 'קיין שולן';
@@ -318,8 +338,8 @@ async function answer(text: string, member: any): Promise<string> {
     const lines = [0, 1].map(i => { const s: any = L[(k + i) % L.length]; return shortD(addDays(st, 14 * (k + i))) + ' ' + s.name + (i === 0 && s.addr ? '\n' + s.addr : ''); });
     return '🕍 ' + lines.join('\n');
   }
-  // donor commands
-  const r = pickOne(rest); if (!r.a) return r.msg!;
+  // donor commands (v1.71: a name that is no donor but a shul answers with the shul)
+  const r = pickOne(rest); if (!r.a) { if (cmd === 'info' && /^נישט געפונען/.test(r.msg || '')) { const si = shulInfo(rest); if (!/^קיין שול/.test(si)) return si; } return r.msg!; }
   const a = r.a, g = C.IDX.yg.get(a.c), p = C.IDX.pl.get(a.c);
   const phones = a.ph.slice(0, 3).map((x: any) => (x[0] ? x[0] + ' ' : '') + x[1]).join('\n') || 'קיין טעלעפאן';
   const yearAgo = addMonths(today, -12);

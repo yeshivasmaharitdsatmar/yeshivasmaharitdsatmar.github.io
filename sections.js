@@ -255,26 +255,73 @@ function shulSchedule(n) {
   for (let i = 0; i < n; i++, k++) out.push({ k, date: addDays(st, 14 * k), s: act[k % act.length] });
   return out;
 }
+// 🕍 Shul details (v1.71, owner's Excel "Location List"): name (Yiddish, else English), eng, short, nusach, addr,
+// city, zip, rabbi, phone, type. Sort/search on the shuls page (ui.shSort 'ord'|'heb'|'eng'|'zip'|'city', ui.shQ).
+const shulZip = s => s.zip || ((String(s.addr || '').match(/\b(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/) || [])[1] || '');
+const shulCity = s => s.city || ((String(s.addr || '').split(',')[1] || '').trim());
+function shulAddrFix(raw) {   // "92 wallabout st,Williamsburg,NY,USA,11249" → "92 wallabout st, Williamsburg, NY 11249"
+  const parts = String(raw || '').split(',').map(x => x.trim()).filter(x => x && !/^usa$/i.test(x));
+  const zip = (parts.find(x => /^\d{5}(-\d{4})?$/.test(x)) || '');
+  const rest = parts.filter(x => x !== zip), st = rest.length > 2 && /^[A-Z]{2}$/.test(rest[rest.length - 1]) ? rest.pop() : '';
+  return { addr: rest.join(', ') + (st || zip ? ', ' + [st, zip].filter(Boolean).join(' ') : ''), city: rest[1] || '', zip: zip.slice(0, 5) };
+}
+async function shulImport(file) {
+  if (!file) return;
+  try {
+    const rows = await xlsxRead(file); if (rows.length < 2) { toast('⚠️ Empty file'); return; }
+    const H = rows[0].map(h => String(h).trim().toLowerCase()), ix = (...ns) => { for (const n of ns) { const i = H.indexOf(n); if (i >= 0) return i; } return -1; };
+    const c = { eng: ix('location', 'name', 'english name'), heb: ix('location jewish', 'jewish name', 'yiddish', 'hebrew'), nus: ix('nusach'), addr: ix('address'), rabbi: ix('rabbi'), phone: ix('phone'), short: ix('short name'), type: ix('type') };
+    if (c.eng < 0 && c.heb < 0) { toast('⚠️ No "Location" column'); return; }
+    const L = shulList(), byKey = new Map(); L.forEach(s => { [s.eng, s.name].forEach(k => k && byKey.set(String(k).trim().toLowerCase(), s.id)); });
+    let ord = Math.max(0, ...L.map(s => s.ord || 0)), add = 0, upd = 0; const ev = [];
+    for (const r of rows.slice(1)) {
+      const g = i => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
+      const eng = g(c.eng), heb = g(c.heb); if (!eng && !heb) continue;
+      const A = shulAddrFix(g(c.addr));
+      const p = { name: heb || eng, eng, short: g(c.short), nusach: g(c.nus), addr: A.addr, city: A.city, zip: A.zip, rabbi: g(c.rabbi), phone: g(c.phone), type: g(c.type), del: false };
+      const id = byKey.get(eng.toLowerCase()) || byKey.get((heb || '').toLowerCase());
+      if (id) { ev.push({ k: 'shul', eid: id, p }); upd++; } else { p.ord = ++ord; p.paused = false; ev.push({ k: 'shul', eid: uid(), p }); add++; }
+    }
+    if (!ev.length) { toast('⚠️ No shuls found in the file'); return; }
+    if (!SET().shulStart) ev.push({ k: 'settings', eid: 's', p: { shulStart: shulStart() } });
+    await bulkEmit(ev, add + ' new shuls, ' + upd + ' updated');
+  } catch (e) { toast('⚠️ ' + (e.message || e)); }
+}
 function vShuls() {
   const L = shulList(), sch = shulSchedule(Math.max(8, L.length)), stats = {};
   Object.entries(S.acct).forEach(([c, st]) => { if (st.shul) { const o = stats[st.shul] || (stats[st.shul] = { n: 0, t: 0 }); o.n++; o.t += (IDX.yg.get(+c) || {}).total || 0; } });
   const nextOf = id => (sch.find(v => v.s.id === id) || {}).date;
+  const so = ui.shSort || 'ord', V = qVars(ui.shQ || '');
+  const hay = s => qNorm([s.name, s.eng, s.short, s.addr, s.rabbi, s.phone, shulZip(s), s.nusach].join(' '));
+  let T = L.map((s, i) => Object.assign({ _n: i + 1 }, s)).filter(s => !(ui.shQ || '').trim() || qHit(V, hay(s)));
+  const cmp = { heb: (a, b) => (a.name || '').localeCompare(b.name || '', 'he'), eng: (a, b) => (a.eng || a.name || '').localeCompare(b.eng || b.name || ''),
+    zip: (a, b) => (shulZip(a) || '99999').localeCompare(shulZip(b) || '99999') || (a.name || '').localeCompare(b.name || '', 'he'),
+    city: (a, b) => (shulCity(a) || 'zz').localeCompare(shulCity(b) || 'zz') || (a.name || '').localeCompare(b.name || '', 'he') }[so];
+  if (cmp) T = T.slice().sort(cmp);
+  const chip = (k, l) => `<button class="chip ${so === k ? 'on' : ''}" onclick="ui.shSort='${k}';vShuls()">${l}</button>`;
   $('#main').innerHTML = `<div class="row"><div><h2>שולן</h2><p class="sub">יעדע צווייטע מיטוואך קומט ארויף די קומענדיגע שול אויף דער ליסטע (לויט דער ריי). ביי יעדן נדבן קען מען אויסקלייבן אין וועלכע שול מ'האט אים געטראפן.</p></div><div class="spacer"></div>
-   <button class="btn ghost" onclick="shulStartForm()">📅 Started: ${fmtD(shulStart())}</button><button class="btn gold" onclick="shulForm()">+ New shul</button></div>
+   <button class="btn ghost" onclick="shulStartForm()">📅 Started: ${fmtD(shulStart())}</button><label class="btn ghost">📥 Import Excel<input type="file" accept=".xlsx" hidden onchange="shulImport(this.files[0]);this.value=''"></label><button class="btn ghost" onclick="shulXls()">⬇ Excel</button><button class="btn gold" onclick="shulForm()">+ New shul</button></div>
   ${sch.length ? `<div class="banner">🕍 <div><b>${sch[0].date === todayS() ? 'היינט' : 'קומענדיגע מיטוואך, ' + fmtDual(sch[0].date)}</b>: <b class="big">${esc(sch[0].s.name)}</b><br><span class="ltr">${esc(sch[0].s.addr || '')}</span> ${sch[0].s.addr ? `<a class="name" style="font-size:13px" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(sch[0].s.addr)}">🗺️ מאפע</a>` : ''}</div></div>` : ''}
-  <div class="cols"><div><h3>אלע שולן (די ריי)</h3>
-   <table><thead><tr><th>#</th><th>שול</th><th>נדבנים</th><th>קומענדיג</th><th></th></tr></thead><tbody>
-   ${L.map((s, i) => `<tr style="${s.paused ? 'opacity:.5' : ''}"><td class="num">${i + 1}</td><td><a class="name" onclick="shulDonors('${s.id}')">${esc(s.name)}</a>${s.paused ? ' <span class="tag gray">אפגעשטעלט</span>' : ''}<br><span class="ltr" style="font-size:12px;color:var(--muted)">${esc(s.addr || '')}</span>${s.notes ? `<div class="sub" style="margin:2px 0 0">${esc(s.notes)}</div>` : ''}</td>
+  <div class="cols shcols"><div><h3>אלע שולן (די ריי)</h3>
+   <div class="row" style="margin:0 0 8px;flex-wrap:wrap"><input class="search" placeholder="🔍 Search…" value="${esc(ui.shQ || '')}" oninput="ui.shQ=this.value;clearTimeout(window._shT);window._shT=setTimeout(()=>{vShuls();const e=document.querySelector('#main input.search');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},250)" style="flex:1;min-width:180px">
+    <span class="sub" style="margin:0">Sort:</span>${chip('ord', 'די ריי')}${chip('heb', 'א-ב')}${chip('eng', 'A-Z')}${chip('zip', 'Zip')}${chip('city', 'City')}<span class="sub" style="margin:0">${T.length} שולן</span></div>
+   <table><thead><tr><th>#</th><th>שול</th><th>Zip</th><th>רב / טעלעפאן</th><th>נדבנים</th><th>קומענדיג</th><th></th></tr></thead><tbody>
+   ${T.map(s => `<tr style="${s.paused ? 'opacity:.5' : ''}"><td class="num">${s._n}</td><td><a class="name" onclick="shulDonors('${s.id}')">${esc(s.name)}</a>${s.eng && s.eng !== s.name ? ` <small class="dim ltr">${esc(s.eng)}</small>` : ''}${s.nusach ? ` <span class="tag gray">${esc(s.nusach)}</span>` : ''}${s.paused ? ' <span class="tag gray">אפגעשטעלט</span>' : ''}<br><span class="ltr" style="font-size:12px;color:var(--muted)">${esc(s.addr || '')}</span>${s.notes ? `<div class="sub" style="margin:2px 0 0">${esc(s.notes)}</div>` : ''}</td>
+    <td class="num" style="font-size:13px">${esc(shulZip(s))}<br><small class="dim">${esc(shulCity(s))}</small></td>
+    <td style="font-size:13px">${esc(s.rabbi || '')}${s.phone ? `<br><span class="phn">${callBtn(s.phone)} ${esc(s.phone)}</span>` : ''}</td>
     <td class="num">${(stats[s.id] || {}).n || 0}<br><small class="dim">${money((stats[s.id] || {}).t || 0)}</small></td><td style="font-size:13px">${s.paused ? '' : fmtD(nextOf(s.id))}</td>
-    <td><div class="acts"><button class="btn ghost sm" title="ארויף" onclick="shulMove('${s.id}',-1)">▲</button><button class="btn ghost sm" title="אראפ" onclick="shulMove('${s.id}',1)">▼</button><button class="btn ghost sm" onclick="shulForm('${s.id}')">Edit</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty">נאך קיין שולן – דריקט "+ נייע שול"</td></tr>'}
+    <td><div class="acts">${so === 'ord' && !(ui.shQ || '').trim() ? `<button class="btn ghost sm" title="ארויף" onclick="shulMove('${s.id}',-1)">▲</button><button class="btn ghost sm" title="אראפ" onclick="shulMove('${s.id}',1)">▼</button>` : ''}<button class="btn ghost sm" onclick="shulForm('${s.id}')">Edit</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty">נאך קיין שולן – דריקט "+ נייע שול"</td></tr>'}
    </tbody></table></div>
   <div><h3>מיטוואכן</h3><table><tbody>${sch.map(v => `<tr><td style="white-space:nowrap">${fmtDual(v.date)}</td><td><b>${esc(v.s.name)}</b></td></tr>`).join('') || '<tr><td class="empty">—</td></tr>'}</tbody></table></div></div>`;
 }
 function shulForm(id) {
   const x = id ? S.shul[id] : { name: '', addr: '', notes: '', paused: false };
+  const fld = (fid, l, v, ltr) => `<label class="f">${l}<input id="${fid}" value="${esc(v || '')}"${ltr ? ' style="direction:ltr"' : ''}></label>`;
   modal(`<h2>${id ? 'ענדער שול' : 'נייע שול'}</h2><div class="grid2">
    <label class="f" style="grid-column:1/-1">נאמען פון דער שול<input id="sn" value="${esc(x.name)}"></label>
+   ${fld('se', 'English name', x.eng, 1)}${fld('ssh', 'Short name', x.short, 1)}
    <label class="f" style="grid-column:1/-1">אדרעס<input id="sa" value="${esc(x.addr || '')}" style="direction:ltr"></label>
+   ${fld('sz', 'Zip', shulZip(x), 1)}${fld('sc', 'City', shulCity(x), 1)}${fld('sr', 'רב', x.rabbi)}${fld('sph', 'טעלעפאן', x.phone, 1)}${fld('snu', 'נוסח', x.nusach)}
    <label class="f" style="grid-column:1/-1">נאטיץ (גבאי, צייטן א.א.וו.)<input id="snt" value="${esc(x.notes || '')}"></label>
    <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="sp" ${x.paused ? 'checked' : ''}> אפגעשטעלט (נישט אריין אין דער ריי)</label></div>
    <div class="row" style="justify-content:flex-end;margin-top:14px">${id ? `<button class="btn red" onclick="shulDel('${id}')">Delete</button><div class="spacer"></div>` : ''}<button class="btn ghost" onclick="closeM()">Back</button><button class="btn" onclick="shulSave('${id || ''}')">Save</button></div>`, 'narrow');
@@ -282,7 +329,8 @@ function shulForm(id) {
 }
 async function shulSave(id) {
   const name = $('#sn').value.trim(); if (!name) { $('#sn').focus(); return; }
-  const p = { name, addr: $('#sa').value.trim(), notes: $('#snt').value.trim(), paused: $('#sp').checked, del: false };
+  const v = id => ($('#' + id) ? $('#' + id).value.trim() : '');
+  const p = { name, addr: v('sa'), notes: v('snt'), paused: $('#sp').checked, del: false, eng: v('se'), short: v('ssh'), zip: v('sz'), city: v('sc'), rabbi: v('sr'), phone: v('sph'), nusach: v('snu') };
   if (!id) { p.ord = Math.max(0, ...shulList().map(s => s.ord || 0)) + 1; if (!SET().shulStart) await emit('settings', 's', { shulStart: shulStart() }); }
   await emit('shul', id || uid(), p);
   closeM(); render(); toast('✓ Saved');
@@ -313,6 +361,12 @@ function shulDonors(id) {
    <div class="scroll" style="max-height:60vh"><table><thead><tr><th>נאמען</th><th>טעלעפאן</th><th>סך הכל</th><th>לעצטע</th></tr></thead><tbody>
    ${L.map(c => { const a = IDX.by.get(c), g = IDX.yg.get(c) || {}; return `<tr><td><a class="name" onclick="closeM();openAcct(${c})">${esc(a.h || a.n)}</a><div class="heb">${esc(a.h ? a.n : '')}</div></td><td class="num" style="font-size:13px">${a.ph[0] ? callBtn(a.ph[0][1], c) + ' ' + esc(a.ph[0][1]) : ''}</td><td class="num">${money(g.total)}</td><td class="num">${fmtD(g.last)}</td></tr>`; }).join('') || '<tr><td colspan="4" class="empty">נאך קיינער. עפנט א נדבן און קלייבט אויס די שול.</td></tr>'}
    </tbody></table></div>`);
+}
+function shulXls() {
+  const rows = [['#', 'שול', 'English', 'Short name', 'נוסח', 'Address', 'City', 'Zip', 'רב', 'Phone', 'Donors', 'Paused']];
+  const st = {}; Object.values(S.acct).forEach(a => { if (a.shul) st[a.shul] = (st[a.shul] || 0) + 1; });
+  shulList().forEach((s, i) => rows.push([i + 1, s.name || '', s.eng || '', s.short || '', s.nusach || '', s.addr || '', shulCity(s), shulZip(s), s.rabbi || '', s.phone || '', st[s.id] || 0, s.paused ? 'yes' : '']));
+  xlsx([{ name: 'Shuls', rows }], 'shuls.xlsx');
 }
 function shulSel(id, cur) {
   return `<select id="${id}"><option value="">—</option>${shulList().map(s => `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`;
