@@ -363,7 +363,7 @@ function bulkBar(k) {
    <button class="btn ghost sm" onclick="bulkHold('${k}',true)">⏸ On hold</button><button class="btn ghost sm" onclick="bulkHold('${k}',false)">▶ Off hold</button>
    <select class="mini" onchange="if(this.value!=='-')bulkWho('${k}',this.value)"><option value="-">👤 ווער קאלט…</option><option value="">נישט צוגעטיילט</option>${USERS().map(u => `<option>${esc(u)}</option>`).join('')}</select>
    <select class="mini" onchange="if(this.value){bulkTag('${k}',this.value.slice(1),this.value[0]==='+');this.value=''}"><option value="">🏷️ Flag…</option><optgroup label="+ Add flag">${allTags().map(t => `<option value="+${esc(t)}">🏷️ ${esc(t)}</option>`).join('')}</optgroup><optgroup label="− Remove flag">${allTags().map(t => `<option value="-${esc(t)}">✕ ${esc(t)}</option>`).join('')}</optgroup></select>
-   <button class="btn ghost sm" onclick="bulkNoteForm('${k}')">📝 Note for all</button><button class="btn gold sm" onclick="bulkCall('${k}')">▶ Calling mode</button></div>`;
+   <button class="btn ghost sm" onclick="bulkNoteForm('${k}')">📝 Note for all</button>${isAdmin() ? `<button class="btn ghost sm" onclick="bulkSms('${k}')">📱 SMS</button><button class="btn ghost sm" title="זיי האבן מויל'דיג מסכים געווען צו באקומען טעקסטס" onclick="bulkSmsOk('${k}',true)">✓ SMS OK</button>` : ''}<button class="btn gold sm" onclick="bulkCall('${k}')">▶ Calling mode</button></div>`;
 }
 async function bulkEmit(rows, msg) {   // [{k, eid, p}] in batches of 500
   try {
