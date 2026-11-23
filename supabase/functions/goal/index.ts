@@ -25,10 +25,13 @@ const todayS = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_Y
 const daysAgo = (s: string, n: number) => { const d = new Date(s.slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 // owner (v1.58): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
 const goalHY = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); const p = new Intl.DateTimeFormat('en-u-ca-hebrew', { year: 'numeric', month: 'long', day: 'numeric' }).formatToParts(new Date(y, m - 1, d, 12)); const g = (t: string) => (p.find(x => x.type === t) || { value: '' }).value; const hy = +g('year'); return /^Tishri/.test(g('month')) && +g('day') <= 23 ? hy - 1 : hy; };
-// first name only: the Hebrew name without the family name and without titles (מוה"ר, ר', הרה"ח …)
-const firstName = (a: any) => { let w = String(a.h || '').trim().split(/\s+/).filter(Boolean); const l = String(a.lh || '').trim().split(/\s+/).filter(Boolean);
+// first name only: the Hebrew name without the family name and without titles (מוה"ר, ר', הרה"ח …);
+// nameParts also returns the title in front of it, as typed in JLS (Members.Title) – v1.80, owner: not the same title for everybody
+const nameParts = (a: any) => { let w = String(a.h || '').trim().split(/\s+/).filter(Boolean); const l = String(a.lh || '').trim().split(/\s+/).filter(Boolean);
   if (l.length && w.slice(-l.length).join(' ') === l.join(' ')) w = w.slice(0, -l.length); else if (w.length > 1 && !l.length) w = w.slice(0, -1);
-  const T = /['"׳״]|^(הרב|רבי|הגאון|הרה"ח|מוהר"ר)$/; while (w.length > 1 && T.test(w[0])) w.shift(); return w.join(' ') || a.h || a.n || ''; };
+  const T = /['"׳״]|^(הרב|רבי|הגאון|הרה"ח|מוהר"ר|מו"ה|הר"ר|הבה"ח|האברך)$/, t: string[] = []; while (w.length > 1 && T.test(w[0])) t.push(w.shift() as string);
+  return { first: w.join(' ') || a.h || a.n || '', title: t.join(' ') }; };
+const firstName = (a: any) => nameParts(a).first;
 // the yeshiva's name in the owner's font BA Franknatan, as a picture (e-mail programs do not load web fonts)
 const NAME_W = 231;
 const MAIL_RX = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
@@ -82,21 +85,21 @@ function calc(code: number) {
     }
   }
   const amt = +g.amt;
-  return { code, g, a, hy, year: gem(hy), name: a.h || a.n, first: firstName(a), amt, given, left: Math.max(0, amt - given), pct: Math.min(100, Math.round(given / amt * 100)), pays, won: given >= amt - 0.005 };
+  return { code, g, a, hy, year: gem(hy), name: a.h || a.n, first: firstName(a), title: nameParts(a).title, amt, given, left: Math.max(0, amt - given), pct: Math.min(100, Math.round(given / amt * 100)), pays, won: given >= amt - 0.005 };
 }
 const emailOf = (code: number) => (((C.S.acct[code] || {}).email) || ((C.by.get(code) || {}).em || [])[0] || '').trim();
 
 // ---------- the e-mail (tables + inline styles, so every mail program shows it the same) ----------
 function letter(D: any, o: { subject?: string, note?: string, celebrate?: boolean } = {}) {
   const cel = o.celebrate || D.won, link = SITE + 'goal.html?t=' + encodeURIComponent(D.g.tok || '');
-  const subject = (o.subject || '').trim() || (cel ? `🎉 מזל טוב ר' ${D.first} – איר האט דערגרייכט דעם ציל פאר ${D.year}!` : `ר' ${D.first} – 'פרוטה פרוטה מצטרפת' רעפארט · ${D.pct}% פון אייער ציל`);
+  const subject = (o.subject || '').trim() || (cel ? `🎉 מזל טוב ${D.title || "ר'"} ${D.first} – איר האט דערגרייכט דעם ציל פאר ${D.year}!` : `${D.title || "ר'"} ${D.first} – 'פרוטה פרוטה מצטרפת' רעפארט · ${D.pct}% פון אייער ציל`);
   const bar = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;background:#e9e2cf;height:26px"><tr>${D.pct > 0 ? `<td width="${D.pct}%" style="background:#c9962b;background:linear-gradient(90deg,#e8c05a,#b8892b);height:26px;color:#fff;font:bold 13px Arial;text-align:center">${D.pct >= 12 ? D.pct + '%' : ''}</td>` : ''}${D.pct < 100 ? `<td style="height:26px;font:bold 13px Arial;color:#8a7a55;text-align:center">${D.pct < 12 ? D.pct + '%' : ''}</td>` : ''}</tr></table>`;
   const box = (label: string, val: string, color: string) => `<td width="33%" style="padding:6px"><div style="background:#fff;border:1px solid #e6dfcf;border-radius:12px;padding:12px 6px;text-align:center"><div style="font:bold 22px Arial;color:${color}">${val}</div><div style="font:12px Arial;color:#777;margin-top:2px">${label}</div></div></td>`;
   const html = `<div dir="rtl" style="background:#f3efe2;padding:18px 8px;font-family:Arial,sans-serif;color:#222">
  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#faf7f0;border-radius:16px;overflow:hidden;border:1px solid #e6dfcf">
   <tr><td style="background:#1d3557;padding:20px;text-align:center;border-bottom:4px solid #c9962b"><img src="${SITE}logo.png" width="84" alt="" style="display:block;margin:0 auto 6px"><img src="${SITE}yeshiva-name.png" width="${NAME_W}" alt="ישיבת מהרי&quot;ט ד'סאטמאר" style="display:block;margin:0 auto;border:0;color:#f4d48a;font:bold 20px Arial"></td></tr>
   <tr><td style="padding:22px 22px 6px;text-align:center">
-   <div style="font:bold 20px Arial;color:#1d3557;line-height:1.5">מע"כ ידידינו הרה"ח ר' ${esc(D.first)} שיחי'${cel ? '' : ` – 'פרוטה פרוטה מצטרפת' רעפארט`}</div>
+   <div style="font:bold 20px Arial;color:#1d3557;line-height:1.5">מע"כ ידידינו ${esc(D.title || 'הרה"ח ר\'')} ${esc(D.first)} שיחי'${cel ? '' : ` – 'פרוטה פרוטה מצטרפת' רעפארט`}</div>
    ${cel ? '<div style="font:bold 22px Arial;color:#2e7d4f;margin-top:6px">🎉 מזל טוב! איר האט דערגרייכט דעם ציל!</div>' : ''}
    <div style="font:14px Arial;color:#555;margin-top:6px">אייער ציל פאר יאר ${D.year}: <b>${money(D.amt)}</b></div></td></tr>
   <tr><td style="padding:12px 22px">${bar}</td></tr>
