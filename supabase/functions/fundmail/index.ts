@@ -62,7 +62,7 @@ function fundCalc(JD: any, S: any) {   // same rules as fundCalc() in sections.j
   exempt.forEach(e => { const p = periods[Math.floor(daysBetween(start, e.date) / 14)]; if (p) p.ex += +e.amt || 0; });
   // the year's income first covers that year's dinner expenses (same as fundCalc in sections.js)
   const left: Record<number, number> = {};
-  expenses.forEach(e => { const y = +e.hy || hebYear(e.date); left[y] = (left[y] || 0) + (+e.amt || 0); });
+  expenses.forEach(e => { const y = +e.hy || hebYear(e.date), a = +e.amt || 0, d = e.ded == null || e.ded === '' ? a : Math.max(0, Math.min(+e.ded || 0, a)); left[y] = (left[y] || 0) + d; });   // v1.74: `ded` = part to deduct
   periods.forEach(p => { const y = hebYear(p.from), base = p.income - p.ex, ded = Math.min(Math.max(base, 0), left[y] || 0); p.exp = ded; left[y] = (left[y] || 0) - ded; p.owed = (base - ded) * pct / 100; p.paid = paid.filter(x => x.date >= p.from && x.date <= p.to).reduce((a, x) => a + (+x.amt || 0), 0); });
   const totPaid = paid.reduce((a, x) => a + (+x.amt || 0), 0);
   return { pct, start, income, periods, balance: periods.reduce((a, p) => a + p.owed, 0) - totPaid };
