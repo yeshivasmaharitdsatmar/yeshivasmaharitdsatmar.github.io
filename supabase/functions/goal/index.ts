@@ -64,8 +64,9 @@ async function load() {
 // one donor's goal with the payments of the goal year (YG payments, refunds left out)
 function calc(code: number) {
   const g = (C.S.acct[code] || {}).goal; if (!g || !(+g.amt > 0)) return null;
-  const a = C.by.get(code) || { n: '', h: '' }, hy = +g.hy || goalHY(todayS());
-  const pays = C.JD.payments.filter((p: any) => +p[1] === code && !p[9] && p[3] > 0 && p[2] && goalHY(p[2]) === hy).map((p: any) => ({ d: p[2], amt: p[3] })).sort((x: any, y: any) => x.d.localeCompare(y.d));
+  const a = C.by.get(code) || { n: '', h: '' }, hy = +g.hy || goalHY(todayS()), camp = +g.camp || 0;
+  // v1.75: with a campaign only payments applied to it count (any date); without one, the goal year
+  const pays = C.JD.payments.filter((p: any) => +p[1] === code && !p[9] && p[3] > 0 && p[2] && (camp ? +p[6] === camp : goalHY(p[2]) === hy)).map((p: any) => ({ d: p[2], amt: p[3] })).sort((x: any, y: any) => x.d.localeCompare(y.d));
   const given = Math.round(pays.reduce((s: number, p: any) => s + p.amt, 0) * 100) / 100, amt = +g.amt;
   return { code, g, a, hy, year: gem(hy), name: a.h || a.n, first: firstName(a), amt, given, left: Math.max(0, amt - given), pct: Math.min(100, Math.round(given / amt * 100)), pays, won: given >= amt - 0.005 };
 }

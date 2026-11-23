@@ -15,11 +15,11 @@ const validD = s => s && s >= '1990-01-01' && s <= '2100-01-01';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 3200); }
-// 📌 table headers stay on screen while scrolling (owner, v1.74): they stick right under the page header, whose height
+// 📌 table headers stay on screen while scrolling (owner, v1.75): they stick right under the page header, whose height
 // is kept in the CSS variable --hdr
 function hdrVar() {
   const h = document.querySelector('header'), r = document.documentElement.style; if (h) r.setProperty('--hdr', h.offsetHeight + 'px');
-  const p = document.querySelector('#main > .row:first-child');   // v1.74: the sticky page top row; table headers stick under it
+  const p = document.querySelector('#main > .row:first-child');   // v1.75: the sticky page top row; table headers stick under it
   r.setProperty('--phd', (p && getComputedStyle(p).position === 'sticky' ? p.offsetHeight : 0) + 'px');
 }
 document.addEventListener('DOMContentLoaded', () => { const m = document.getElementById('main'); if (m && window.MutationObserver) new MutationObserver(() => requestAnimationFrame(hdrVar)).observe(m, { childList: true }); });
@@ -78,7 +78,7 @@ function applyEvent(ev) {
     if (ev.p && ev.p.del) { HIST_DEL.add(ev.id); delete S.hist[ev.id]; }
   }
 }
-// ✏️ edit / delete a note (owner, v1.74): only who wrote it, or an admin; the log keeps every version
+// ✏️ edit / delete a note (owner, v1.75): only who wrote it, or an admin; the log keeps every version
 const HIST_DEL = new Set();
 const histCan = h => !!h && !h.res && (h.by === me || isAdmin());
 function histBtns(id, back) {
@@ -120,7 +120,7 @@ async function pullLog() {
   }
   return changed;
 }
-// Download a JLS data file always fresh (v1.74.1): the files used to be saved with Supabase's default 1-hour cache, so
+// Download a JLS data file always fresh (v1.75.1): the files used to be saved with Supabase's default 1-hour cache, so
 // another user's browser could show the old numbers for up to an hour after an import.
 async function jlsFile(path) {
   try {
@@ -149,7 +149,7 @@ function hebLast(a) {
   const lh = a.lh || (a.h ? a.h.trim().split(/\s+/).pop() : '');
   return lh ? '0' + lh + ' ' + (a.h || '') : '1' + (a.ln || a.n || '').toLowerCase() + ' ' + (a.n || '').toLowerCase();
 }
-// 🔍 Search that understands both keyboards (v1.74, owner): text typed with the keyboard on Hebrew/Yiddish while
+// 🔍 Search that understands both keyboards (v1.75, owner): text typed with the keyboard on Hebrew/Yiddish while
 // meaning English letters ("יקךךם" = "hello"), or English letters while meaning Yiddish ("nav" = "מאה"), is also tried through the other layout (standard Israeli layout). Niqqud and Yiddish ligatures
 // (ײ װ ױ) are ignored. qVars(raw) = the normalised text + its swapped twin; every search box tries both.
 const KB_PAIRS = "q/w'eקrרtאyטuוiןoםpפaשsדdגfכgעhיjחkלlךzזxסcבvהbנmצ;ף,ת.ץnמ";
@@ -506,7 +506,7 @@ function wire() {
 function setArea(a, keepView) {
   AREA = a; try { sessionStorage.setItem('yg_area', a); } catch (e) { }
   document.body.classList.toggle('area-tu', a === 'tu');
-  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.74</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.74</small>';
+  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.75</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.75</small>';
   $('#btnArea').style.display = canFund() && canView('tuition') ? '' : 'none';
   $('#btnArea').textContent = a === 'tu' ? '⇄ צו פאנדרעיזינג' : '⇄ צו שכר לימוד';
   setupUser();
@@ -826,32 +826,45 @@ function openAcct(code) {
   <div class="tabs2">${[['pay', 'באצאלונגען'], ['pl', 'פלעדזשעס'], ['hist', 'היסטאריע (' + hist.length + ')'], ['tasks', 'ארבעטן (' + tasks.filter(t => !t[1].done).length + ')']].map(([kk, l]) => `<button class="${acctTab === kk ? 'on' : ''}" onclick="acctTab='${kk}';openAcct(${code})">${l}</button>`).join('')}</div>
   <div class="scroll">${tabBody[acctTab]}</div>`);
 }
-// 🎯 donor goal (owner, v1.74): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
+// 🎯 donor goal (owner, v1.75): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
 // The e-mail and the personal page (goal.html?t=tok) are built by the Supabase function "goal"; it also sends the
 // automatic e-mails every 2 weeks and the 🎉 e-mail when the goal is reached.
 const goalOf = c => (S.acct[c] || {}).goal || null;
-// owner (v1.74): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
+// owner (v1.75): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
 function goalHY(iso) { const p = HEB.parts(iso); return !p ? 0 : /^Tishri/.test(p.m) && p.d <= 23 ? p.y - 1 : p.y; }
 function goalCalc(c) {
   const g = goalOf(c); if (!g || !(+g.amt > 0)) return null;
-  const hy = +g.hy || goalHY(todayS()), list = ((IDX.yg.get(+c) || {}).list || []).filter(p => !p[9] && p[3] > 0 && p[2] && goalHY(p[2]) === hy);
+  // v1.75 (owner): with a campaign (g.camp) only payments applied to that campaign count (any date); without one, the goal year as before
+  const hy = +g.hy || goalHY(todayS()), camp = +g.camp || 0, list = ((IDX.yg.get(+c) || {}).list || []).filter(p => !p[9] && p[3] > 0 && p[2] && (camp ? +p[6] === camp : goalHY(p[2]) === hy));
   const given = Math.round(list.reduce((s, p) => s + p[3], 0) * 100) / 100, amt = +g.amt;
   return { g, hy, amt, given, left: Math.max(0, amt - given), pct: Math.min(100, Math.round(given / amt * 100)), won: given >= amt - 0.005, list };
 }
 function goalBox(c) {
   const G = goalCalc(c);
   if (!G) return `<div style="margin:-6px 0 12px"><button class="btn ghost sm" onclick="goalForm(${c})">🎯 + Goal</button></div>`;
-  return `<div class="box goalbox"><div class="row" style="margin:0 0 6px"><b>🎯 ציל ${HEB.gem(G.hy)}: ${money(G.amt)}</b>${G.won ? '<span class="tag ok">🎉 דערגרייכט</span>' : ''}<div class="spacer"></div>
+  return `<div class="box goalbox"><div class="row" style="margin:0 0 6px"><b>🎯 ציל ${HEB.gem(G.hy)}: ${money(G.amt)}</b>${+G.g.camp ? ` <span class="tag gray">${esc((JD.campaigns || {})[G.g.camp] || '#' + G.g.camp)}</span>` : ''}${G.won ? '<span class="tag ok">🎉 דערגרייכט</span>' : ''}<div class="spacer"></div>
     <button class="btn ghost sm" onclick="goalForm(${c})">Edit</button><button class="btn ghost sm" onclick="goalLink(${c})">🔗 Copy link</button><button class="btn gold sm" onclick="goalMail(${c})">✉️ Send email</button></div>
    <div class="goalbar"><i style="width:${G.pct}%"></i><b>${G.pct}%</b></div>
    <div class="sub" style="margin:6px 0 0">געגעבן <b>${money(G.given)}</b> · נאך <b>${money(G.left)}</b> ביזן ציל${G.g.auto ? ' · ⏰ אימעיל אויטאמאטיש יעדע 2 וואכן' : ''}${G.g.sentAt ? ' · לעצטע אימעיל ' + fmtD(G.g.sentAt.slice(0, 10)) : ''}</div></div>`;
 }
 const goalTok = () => { const a = new Uint8Array(24), ch = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; crypto.getRandomValues(a); return [...a].map(x => ch[x % ch.length]).join(''); };
+// campaigns for the goal form: the YG campaigns + this donor's, newest number first; default = the campaign with most YG payments in the goal year
+function goalCampOpts(c, cur) {
+  const S = new Set(typeof ygCamps === 'function' ? [...ygCamps()] : []);
+  ((IDX.yg.get(+c) || {}).list || []).forEach(p => { if (+p[6]) S.add(+p[6]); });
+  const nm = n => (JD.campaigns || {})[n] || '#' + n;
+  return `<option value="">כל קאמפעינס (לויט יאר)</option>` + [...S].filter(Boolean).sort((a, b) => b - a).map(n => `<option value="${n}" ${+cur === n ? 'selected' : ''}>${esc(nm(n))}</option>`).join('');
+}
+function goalCampDefault() {
+  const gy = goalHY(todayS()), n = {}; (JD.payments || []).forEach(p => { if (+p[6] && p[2] && !p[9] && goalHY(p[2]) === gy) n[p[6]] = (n[p[6]] || 0) + 1; });
+  return +(Object.entries(n).sort((a, b) => b[1] - a[1])[0] || [0])[0] || '';
+}
 function goalForm(c) {
-  const gy = goalHY(todayS()), g = goalOf(c) || { amt: '', hy: gy, auto: false, note: '' }, hy = +g.hy || gy;
+  const gy = goalHY(todayS()), g = goalOf(c) || { amt: '', hy: gy, auto: false, note: '', camp: goalCampDefault() }, hy = +g.hy || gy;
   modal(`<h2>🎯 ציל – ${esc(acctName(c))}</h2><div class="grid2">
    <label class="f">ציל $<input id="gla" type="number" step="1" value="${esc(g.amt)}" placeholder="26000"></label>
    <label class="f">פאר וועלכן יאר<select id="gly">${[gy - 1, gy, gy + 1].map(y => `<option value="${y}" ${y === hy ? 'selected' : ''}>${HEB.gem(y)}</option>`).join('')}</select></label>
+   <label class="f" style="grid-column:1/-1">🎯 קאמפעין – נאר באצאלונגען אויף דעם קאמפעין ווערן גערעכנט<select id="glc">${goalCampOpts(c, g.camp)}</select></label>
    <label class="f" style="grid-column:1/-1">א פערזענליכע שורה אין אימעיל (אפציאנאל)<textarea id="gln" rows="2" placeholder="למשל: נאך 3 מאל $4,000 און מיר האבן עס!">${esc(g.note || '')}</textarea></label>
    <label class="f" style="grid-column:1/-1">CC (אפציאנאל, עטליכע מיט קאמע)<input id="glcc" style="direction:ltr" value="${esc(g.cc || '')}" placeholder="name@example.com, …"></label>
    <label style="grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="glauto" ${g.auto ? 'checked' : ''}> ⏰ שיק אים אויטאמאטיש דעם אימעיל יעדע 2 וואכן (ביז ער דערגרייכט דעם ציל)</label>
@@ -860,8 +873,8 @@ function goalForm(c) {
 }
 async function goalSave(c) {
   const amt = +$('#gla').value; if (!(amt > 0)) { $('#gla').focus(); toast('⚠️ שרייבט דעם ציל'); return; }
-  const old = goalOf(c) || {}, hy = +$('#gly').value;
-  await emit('acct', c, { goal: Object.assign({}, old, { amt, hy, note: $('#gln').value.trim(), cc: $('#glcc').value.trim(), auto: $('#glauto').checked, tok: old.tok || goalTok() }, hy !== +old.hy ? { won: false, sentAt: '' } : {}) });
+  const old = goalOf(c) || {}, hy = +$('#gly').value, camp = +$('#glc').value || 0;
+  await emit('acct', c, { goal: Object.assign({}, old, { amt, hy, camp, note: $('#gln').value.trim(), cc: $('#glcc').value.trim(), auto: $('#glauto').checked, tok: old.tok || goalTok() }, hy !== +old.hy || camp !== (+old.camp || 0) ? { won: false, sentAt: '' } : {}) });
   toast('✓ Saved'); openAcct(c);
 }
 async function goalDel(c) { if (!confirm('אויסמעקן דעם ציל?')) return; await emit('acct', c, { goal: null }); openAcct(c); }
@@ -896,7 +909,7 @@ async function goalSend(c) {
   try { await goalCall({ action: 'send', code: c, to, subject: $('#gms').value, note: $('#gmn').value, cc: $('#gmc').value.trim(), by: me }); busy(false); await pullLog(); toast('✓ ✉️ ' + to); openAcct(c); }
   catch (e) { busy(false); $('#gmgo').disabled = false; toast('⚠️ ' + (e.message || e)); }
 }
-// 💳 On the account (owner, v1.74): active credit-card plans (JD.ccplans, schedule columns only) and held /
+// 💳 On the account (owner, v1.75): active credit-card plans (JD.ccplans, schedule columns only) and held /
 // post-dated checks (YG payments whose check date is still ahead) – the same things plCovered() looks at.
 function acctFuture(code) {
   const t = todayS(), camp = n => (JD.campaigns || {})[n] || (n ? '#' + n : '');
@@ -918,7 +931,7 @@ function acctFuture(code) {
 }
 async function saveAcct(code) {
   await emit('acct', code, { freq: $('#af').value, nextAsk: $('#an').value, assigned: $('#aa').value, vip: !!$('#av').value, notes: $('#ao').value, shul: $('#ash').value, email: $('#aem').value.trim().toLowerCase() === ((IDX.by.get(code) || {}).em || [])[0] ? '' : $('#aem').value.trim().toLowerCase() });
-  closeM(); render(); toast('✓ Saved');   // owner (v1.74): Save closes the account window
+  closeM(); render(); toast('✓ Saved');   // owner (v1.75): Save closes the account window
 }
 async function addNote(code) {
   const t = $('#hn').value.trim(); if (!t) return;
@@ -927,7 +940,7 @@ async function addNote(code) {
 
 // ---------- REPORTS ----------
 // Payments by Jewish year and month (refunds left out)
-// Years are shown only up to the current Jewish year (owner, v1.74): no next year from post-dated payments,
+// Years are shown only up to the current Jewish year (owner, v1.75): no next year from post-dated payments,
 // scheduled credit-card charges or bills already entered for later.
 const curHY = () => (HEB.parts(todayS()) || {}).y || 9999;
 function hebYears() {
@@ -1212,7 +1225,7 @@ function closeM() { $('#ov').classList.remove('on'); }
 
 const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
 window.addEventListener('resize', setHH); window.addEventListener('load', setHH); setHH();
-// ---------- 🔄 new version on the website: update by itself (v1.74) ----------
+// ---------- 🔄 new version on the website: update by itself (v1.75) ----------
 // Every minute the page asks the server for index.html and compares <meta name="app-version">. When it changed:
 // if nobody is in the middle of something (no window open, not typing, no mouse/keys for 20 s) the page reloads by
 // itself and comes back to the same page; otherwise a small "🔄 נייע ווערסיע" button waits for a click.
