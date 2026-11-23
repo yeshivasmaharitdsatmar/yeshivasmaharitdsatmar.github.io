@@ -67,7 +67,18 @@ function calc(code: number) {
   const a = C.by.get(code) || { n: '', h: '' }, hy = +g.hy || goalHY(todayS()), camp = +g.camp || 0;
   // v1.75: with a campaign only payments applied to it count (any date); without one, the goal year
   const pays = C.JD.payments.filter((p: any) => +p[1] === code && !p[9] && p[3] > 0 && p[2] && (camp ? +p[6] === camp : goalHY(p[2]) === hy)).map((p: any) => ({ d: p[2], amt: p[3] })).sort((x: any, y: any) => x.d.localeCompare(y.d));
-  const given = Math.round(pays.reduce((s: number, p: any) => s + p.amt, 0) * 100) / 100, amt = +g.amt;
+  let given = Math.round(pays.reduce((s: number, p: any) => s + p.amt, 0) * 100) / 100;
+  // v1.76 (owner, #17623): JLS can split one payment between pledges. With pledges in this campaign, JLS's "Paid" on them is the
+  // real total; the payment list is then cut to that total (oldest first, the last one shows only the part that went to the campaign).
+  if (camp) {
+    const pl = (C.JD.pledges || []).filter((x: any) => +x[1] === code && +x[6] === camp);
+    if (pl.length) {
+      given = Math.round(pl.reduce((s: number, x: any) => s + (+x[4] || 0), 0) * 100) / 100;
+      let rest = given; for (const p of pays) { const take = Math.max(0, Math.min(p.amt, rest)); if (take < p.amt) p.amt = Math.round(take * 100) / 100; rest -= take; }
+      for (let i = pays.length - 1; i >= 0; i--) if (!(pays[i].amt > 0.004)) pays.splice(i, 1);
+    }
+  }
+  const amt = +g.amt;
   return { code, g, a, hy, year: gem(hy), name: a.h || a.n, first: firstName(a), amt, given, left: Math.max(0, amt - given), pct: Math.min(100, Math.round(given / amt * 100)), pays, won: given >= amt - 0.005 };
 }
 const emailOf = (code: number) => (((C.S.acct[code] || {}).email) || ((C.by.get(code) || {}).em || [])[0] || '').trim();
