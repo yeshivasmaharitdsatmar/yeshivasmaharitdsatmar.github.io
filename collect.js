@@ -164,6 +164,7 @@ function colRow(r, i, tab) {
    ${selBox('col-' + tab, r.code)}
    <div class="cr1"><a class="name" onclick="${r.f ? `tuFamily(${r.code})` : `openAcct(${r.code})`}">${colName(r.code)}</a> <small class="dim">#${r.code}</small> <button class="nbtn" title="📝 נאטיץ" onclick="noteForm(${r.code})">📝</button>${tab !== 'all' ? ` <button class="nbtn" title="▶ Calling mode – start with this account" onclick="colStartAt('${tab}',${r.code})">▶</button>` : ''}
     ${r.f ? tuStChip(r.f) : ''}${s.hold ? ' <span class="tag purple">⏸ On hold</span>' : ''}${s.ign ? ' <span class="tag gray">🚫 Ignored</span>' : ''}${s.cb ? ` <span class="tag orange">🔁 ${fmtD(s.cb)}</span>` : ''}${colWho(r.code)}${r.done ? ' <span class="tag ok">✓ היינט</span>' : ''}
+    ${(() => { const A = IDX.by.get(+r.code); return A && A.a ? `<div class="cmqa">📍 <span class="ltr">${esc(A.a)}</span></div>` : ''; })()}
     ${tab === 'pl' || tab === 'today' ? colPlLine(r.code) : ''}<div class="cr2">${h ? `💬 "${esc(h.text.length > 80 ? h.text.slice(0, 80) + '…' : h.text)}" · ${fmtD((h.at || '').slice(0, 10))} · ${userChip(h.by || '')}` : '<span class="dim">נאך קיין נאטיץ</span>'}${o ? ` · <b>${o[1]}</b>` : ''}</div></div>
    <div class="cr3"><b class="${r.amt > 0.5 ? 'bal' : ''}">${r.amt < -0.005 ? `<span class="credit">קרעדיט ${money(-r.amt)}</span>` : money(r.amt)}</b>${r.bal > r.amt + 0.5 ? `<small class="dim">${money(r.bal)} באלאנס</small>` : ''}</div></div>`;
 }
@@ -294,7 +295,7 @@ function cmSearchInit() {
   let tm;
   const show = () => {
     const L = cmSearchList(qi.value);
-    box.innerHTML = !qi.value.trim() ? '' : L.length ? L.map(x => `<div class="cmqi" onmousedown="cmPick(${x.c})"><b>${esc(x.a.h || x.a.n)}</b> <small>${esc(x.a.h ? x.a.n : '')} · #${x.c}${x.a.ph && x.a.ph[0] ? ' · <span dir="ltr" class="phn">' + esc(x.a.ph[0][1]) + '</span>' : ''}</small>${x.on ? ' <span class="tag custom">אין דער ליסטע</span>' : ''}</div>`).join('') : '<div class="cmqi dim">גארנישט געטראפן</div>';
+    box.innerHTML = !qi.value.trim() ? '' : L.length ? L.map(x => `<div class="cmqi" onmousedown="cmPick(${x.c})"><b>${esc(x.a.h || x.a.n)}</b> <small>${esc(x.a.h ? x.a.n : '')} · #${x.c}${x.a.ph && x.a.ph[0] ? ' · <span dir="ltr" class="phn">' + esc(x.a.ph[0][1]) + '</span>' : ''}</small>${x.on ? ' <span class="tag custom">אין דער ליסטע</span>' : ''}${x.a.a ? `<div class="cmqa">📍 <span class="ltr">${esc(x.a.a)}</span></div>` : ''}</div>`).join('') : '<div class="cmqi dim">גארנישט געטראפן</div>';
     box.classList.toggle('on', !!qi.value.trim());
   };
   qi.oninput = () => { clearTimeout(tm); tm = setTimeout(show, 200); };
