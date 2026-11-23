@@ -99,7 +99,7 @@ function letter(D: any, o: { subject?: string, note?: string, celebrate?: boolea
  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#faf7f0;border-radius:16px;overflow:hidden;border:1px solid #e6dfcf">
   <tr><td style="background:#1d3557;padding:20px;text-align:center;border-bottom:4px solid #c9962b"><img src="${SITE}logo.png" width="84" alt="" style="display:block;margin:0 auto 6px"><img src="${SITE}yeshiva-name.png" width="${NAME_W}" alt="ישיבת מהרי&quot;ט ד'סאטמאר" style="display:block;margin:0 auto;border:0;color:#f4d48a;font:bold 20px Arial"></td></tr>
   <tr><td style="padding:22px 22px 6px;text-align:center">
-   <div style="font:bold 20px Arial;color:#1d3557;line-height:1.5">מע"כ ידידינו ${esc(D.title || 'הרה"ח ר\'')} ${esc(D.first)} שיחי'${cel ? '' : ` – 'פרוטה פרוטה מצטרפת' רעפארט`}</div>
+   <div style="font:bold 20px Arial;color:#1d3557;line-height:1.5">מע"כ ידידינו ${esc(D.title || 'הרה"ח ר\'')} ${esc(D.first)} ${esc(D.a.sf || "שיחי'")}${cel ? '' : ` – 'פרוטה פרוטה מצטרפת' רעפארט`}</div>
    ${cel ? '<div style="font:bold 22px Arial;color:#2e7d4f;margin-top:6px">🎉 מזל טוב! איר האט דערגרייכט דעם ציל!</div>' : ''}
    <div style="font:14px Arial;color:#555;margin-top:6px">אייער ציל פאר יאר ${D.year}: <b>${money(D.amt)}</b></div></td></tr>
   <tr><td style="padding:12px 22px">${bar}</td></tr>

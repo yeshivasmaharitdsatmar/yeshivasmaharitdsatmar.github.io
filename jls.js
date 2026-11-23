@@ -198,10 +198,10 @@
     step('אקאונטס...');
     const acc = new Map();
     for (const r of db.rows(db.table('Members'), ['Code', 'TitleEnglish', 'FName', 'LName', 'Title', 'FNameH', 'LNameH',
-      'TitleEnglishW', 'FNameW', 'TitleW', 'FNameWH', 'NotActive', 'CompanyName'])) {
+      'TitleEnglishW', 'FNameW', 'TitleW', 'FNameWH', 'NotActive', 'CompanyName', 'FNameHSuffix'])) {
       if (r.Code == null) continue;
       acc.set(r.Code, { c: r.Code, n: join(r.TitleEnglish, r.FName, r.LName), h: join(r.Title, r.FNameH, r.LNameH),
-        w: join(r.TitleEnglishW, r.FNameW), wh: join(r.TitleW, r.FNameWH), ln: clean(r.LName), lh: clean(r.LNameH), co: clean(r.CompanyName),
+        w: join(r.TitleEnglishW, r.FNameW), wh: join(r.TitleW, r.FNameWH), ln: clean(r.LName), lh: clean(r.LNameH), co: clean(r.CompanyName), sf: clean(r.FNameHSuffix),   // sf = the Hebrew title after the name (שליט"א, הי"ו, נ"י…), v1.80
         x: r.NotActive ? 1 : 0, a: '', ph: [] });
     }
     step('אדרעסן...');

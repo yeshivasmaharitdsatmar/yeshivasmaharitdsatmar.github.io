@@ -51,7 +51,7 @@ function rcCampOpts() {
   return [...n.keys()].sort((a, b) => b - a);   // JD.payments / JD.pledges hold only YG payments and pledges
 }
 function rcData(p) {
-  const a = IDX.by.get(p[1]) || { n: '', h: '', a: '' }, s = SET(), suf = s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו';
+  const a = IDX.by.get(p[1]) || { n: '', h: '', a: '' }, s = SET(), suf = a.sf || (s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו');
   const heb = a.h ? a.h + (suf ? ' ' + suf : '') : '';
   const d = { key: rcKey(p), code: p[1], date: p[2], amt: p[3], heb, top: heb || a.n, eng: a.n, addr: rcAddr(a), by: s.rcptBy || p[7] || '' };
   const ed = (S.rcpt[d.key] || {}).ed;   // text changed by hand for this one receipt
@@ -222,7 +222,7 @@ function rcSettings() {
   const s = SET();
   modal(`<div dir="ltr" style="text-align:left"><h2>⚙️ Receipt settings</h2><div class="grid2">
    <label class="f">"Received by" (empty = the solicitor from JLS)<input id="rsb" dir="auto" value="${esc(s.rcptBy || '')}"></label>
-   <label class="f">After the name (e.g. הי"ו)<input id="rss" dir="rtl" value="${esc(s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו')}"></label>
+   <label class="f">After the name, when JLS has none (e.g. הי"ו)<input id="rss" dir="rtl" value="${esc(s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו')}"></label>
    <label class="f">Who gets the to-do every 2 weeks<select id="rsw">${USERS().map(u => `<option ${u === rcWho() ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label></div>
    ${mailSettingsHTML()}
    <h3>Campaigns with a receipt for the whole pledge</h3>
@@ -302,7 +302,7 @@ function stHead() {
     : `<div class="hd"><img src="${SITE}logo.png"><div><div class="yn">ישיבה גדולה ומתיבתא תו"י מהרי"ט דסאטמאר</div><div class="ya">Yeshivas Maharit Satmar · P.O. Box 1367 · Monroe NY 10949 · Tel 845.782.1380</div></div></div>`;
 }
 function stPage(r) {
-  const a = r.a, s = SET(), suf = s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו', ad = rcAddr(a), t = todayS();
+  const a = r.a, s = SET(), suf = a.sf || (s.rcptSuffix != null ? s.rcptSuffix : 'הי"ו'), ad = rcAddr(a), t = todayS();
   const camp = n => JD.campaigns[n] || '';
   return `<div class="pg${stLH() ? ' lh' : ''}">
    ${stHead()}

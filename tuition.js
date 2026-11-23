@@ -377,7 +377,7 @@ function tuStAll(v) { tuStRows().forEach(r => { ui.tuSt.sel[r.c] = v; }); vTuStm
 const tuM$ = n => (n < 0 ? '-$' : '$') + rcMoney(Math.abs(n));
 function tuStPage(r) {
   const a = r.a, s = SET(), ad = rcAddr(a), t = todayS(), st = r.st, M = r.M;
-  const nm = a.h ? a.h + ' ' + (s.tuSuffix != null ? s.tuSuffix : 'נ"י') : '';
+  const nm = a.h ? a.h + ' ' + (a.sf || (s.tuSuffix != null ? s.tuSuffix : 'נ"י')) : '';
   return `<div class="pg tu${stLH() ? ' lh' : ''}">
    ${stHead()}
    <div class="tutop"><span>בס"ד</span><span>${rcDate(t)} · ${HEB.fmtHeb(t)}</span></div>
@@ -456,7 +456,7 @@ function tuStSettings() {
   const s = SET();
   modal(`<div dir="ltr" style="text-align:left"><h2>⚙️ Tuition statement text</h2>
    <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:10px"><input type="checkbox" id="tlh" ${stLH() ? 'checked' : ''}> Print on the letterhead (also fundraising statements)</label>
-   <label class="f">After the Hebrew name<input id="tst" dir="rtl" value="${esc(s.tuSuffix != null ? s.tuSuffix : 'נ"י')}"></label>
+   <label class="f">After the Hebrew name, when JLS has none<input id="tst" dir="rtl" value="${esc(s.tuSuffix != null ? s.tuSuffix : 'נ"י')}"></label>
    <label class="f" style="margin-top:10px">Box text (contact for questions)<textarea id="tsx" dir="rtl" rows="4">${esc(s.tuStText || TU_ST_DEF)}</textarea></label>
    <label class="f" style="margin-top:10px">Bottom text<textarea id="tsn" dir="rtl" rows="4">${esc(s.tuStNote2 != null ? s.tuStNote2 : TU_ST_NOTE2)}</textarea></label>
    <label class="f" style="margin-top:10px">E-mail subject<input id="tms" dir="rtl" value="${esc(s.tuMailSubject || TU_MAIL_SUBJ)}"></label>
