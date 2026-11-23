@@ -12,6 +12,9 @@ import nodemailer from 'npm:nodemailer@6.9.16';
 const ENV = (k: string) => (globalThis as any).Deno?.env.get(k) || (globalThis as any).process?.env?.[k] || '';
 const SB_URL = () => ENV('SUPABASE_URL');
 const SITE = 'https://yeshivasmaharitdsatmar.github.io/';
+// payment pages (v1.79, owner): settings payUrl (Cardknox) / payUrl2 (Donary) override these; '' hides one
+const PAY_DEF = ['https://secure.cardknox.com/yeshivasmaharitdsatmard', 'https://donary.com/1029'];
+const payLinks = () => { const s = (C.S.settings || {}).s || {}; return [s.payUrl != null ? s.payUrl : PAY_DEF[0], s.payUrl2 != null ? s.payUrl2 : PAY_DEF[1]].map((u: string) => /^https:\/\/[^\s"<>]+$/.test(u || '') ? u : ''); };
 const BY = '⏰ אויטאמאטיש';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (o: any, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -100,6 +103,7 @@ function letter(D: any, o: { subject?: string, note?: string, celebrate?: boolea
   <tr><td style="padding:0 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${box('שוין געגעבן', money(D.given), '#2e7d4f')}${box(cel ? 'איבערן ציל' : 'נאך ביזן ציל', money(cel ? D.given - D.amt : D.left), cel ? '#2e7d4f' : '#b8892b')}${box('דער ציל', money(D.amt), '#1d3557')}</tr></table></td></tr>
   ${cel ? '' : `<tr><td style="padding:12px 22px 0;font:15px Arial;line-height:1.7;color:#333;text-align:center">יעדע איינציגע נדבה געבט אונז חיזוק אנצוגיין, און עס העלפט אייך ענדיגן אויסצאלן אייער ציל בעז"ה! זכות החזקת התורה וועט אייך זיכער ביישטיין.</td></tr>`}
   ${(o.note || '').trim() ? `<tr><td style="padding:12px 22px;font:15px Arial;line-height:1.6;color:#333">${esc(o.note).replace(/\n/g, '<br>')}</td></tr>` : ''}
+  ${(() => { const [p1, p2] = payLinks(); return cel || !(p1 || p2) ? '' : `<tr><td style="padding:16px 22px 0;text-align:center">${p1 ? `<a href="${esc(p1)}" style="display:inline-block;background:#c9962b;color:#fff;text-decoration:none;font:bold 17px Arial;padding:14px 30px;border-radius:30px">💳 מאכט א באצאלונג</a>` : ''}${p2 ? `<div style="font:13px Arial;color:#777;margin-top:8px">${p1 ? 'אדער' : ''} <a href="${esc(p2)}" style="color:#1d3557;font-weight:bold">באצאלט דורך Donary</a></div>` : ''}</td></tr>`; })()}
   <tr><td style="padding:14px 22px;text-align:center"><a href="${link}" style="display:inline-block;background:#1d3557;color:#fff;text-decoration:none;font:bold 16px Arial;padding:13px 26px;border-radius:30px">🎬 זעט אייער חשבון</a></td></tr>
   <tr><td style="padding:0 22px 14px;text-align:center;font:12px Arial;color:#888">אלע באצאלונגען זעט מען אינעם חשבון (דער קנעפל אויבן)</td></tr>
   <tr><td style="background:#1d3557;color:#cfd8e6;font:12px Arial;text-align:center;padding:14px">א הארציגן יישר כח פאר אייער גרויסע שטיצע · Yeshiva Mesivta Torah V'Yirah Maharit D'Satmar</td></tr>
@@ -130,7 +134,7 @@ export async function handle(req: Request): Promise<Response> {
       await load();
       const code = Object.keys(C.S.acct).map(Number).find(c => ((C.S.acct[c] || {}).goal || {}).tok === t);
       const D = code ? calc(code) : null; if (!D) return json({ error: 'not found' }, 404);
-      return json({ name: D.name, year: D.year, amt: D.amt, given: D.given, left: D.left, pct: D.pct, won: D.won, pays: D.pays.map((p: any) => ({ d: shortD(p.d), amt: p.amt })) });
+      return json({ name: D.name, year: D.year, amt: D.amt, given: D.given, left: D.left, pct: D.pct, won: D.won, pay: payLinks(), pays: D.pays.map((p: any) => ({ d: shortD(p.d), amt: p.amt })) });
     }
     if (req.method === 'GET' && url.searchParams.get('run') === '1') {   // automatic e-mails
       await load();

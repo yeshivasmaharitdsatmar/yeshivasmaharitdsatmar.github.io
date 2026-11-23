@@ -30,6 +30,7 @@
   @keyframes gin { from { opacity: 0; transform: translateY(8px); } }
   .gwon { text-align: center; font-size: 22px; font-weight: bold; color: #2e7d4f; margin: 10px 0; animation: gpop 1s both 2.2s; }
   @keyframes gpop { from { opacity: 0; transform: scale(.6); } }
+  .gpay { text-align: center; margin: 18px 0 6px; } .gpay a.p1 { display: inline-block; background: linear-gradient(90deg,#e8c05a,#b8892b); color: #fff; text-decoration: none; font-weight: bold; font-size: 18px; padding: 14px 34px; border-radius: 30px; box-shadow: 0 4px 14px rgba(184,137,43,.35); } .gpay div { margin-top: 8px; font-size: 13px; color: #777; } .gpay div a { color: #1d3557; font-weight: bold; }
   .gfoot { text-align: center; color: #888; font-size: 12px; margin: 18px 0 8px; }
   .gerr { text-align: center; padding: 60px 16px; color: #666; }
   .hero { padding-top: 6px; }
@@ -61,6 +62,7 @@ function count(el, end, dur) { const t0 = performance.now(); const step = n => {
      <div class="gbar"><i id="gb"></i><b id="gp">0%</b></div>
      ${D.won ? '<div class="gwon">🎉 מזל טוב! איר האט דערגרייכט דעם ציל!</div>' : ''}
      <div class="gstats"><div><b style="color:#2e7d4f">${money(D.given)}</b><span>שוין געגעבן</span></div><div><b style="color:#b8892b">${money(D.won ? D.given - D.amt : D.left)}</b><span>${D.won ? 'איבערן ציל' : 'נאך ביזן ציל'}</span></div><div><b style="color:#1d3557">${money(D.amt)}</b><span>דער ציל פאר ${esc(D.year)}</span></div></div>
+     ${(D.pay || []).some(Boolean) ? `<div class="gpay">${D.pay[0] ? `<a class="p1" href="${esc(D.pay[0])}" target="_blank" rel="noopener">💳 מאכט א באצאלונג</a>` : ''}${D.pay[1] ? `<div>${D.pay[0] ? 'אדער ' : ''}<a href="${esc(D.pay[1])}" target="_blank" rel="noopener">באצאלט דורך Donary</a></div>` : ''}</div>` : ''}
      ${D.pays.length ? `<div class="gpays"><h3>אייערע באצאלונגען אין ${esc(D.year)}</h3><table>${D.pays.map((p, i) => `<tr class="new" style="animation-delay:${2.2 + i * .12}s"><td>${esc(p.d)}</td><td>${money(p.amt)}</td></tr>`).join('')}<tr><td><b>סך הכל</b></td><td>${money(D.given)}</td></tr></table></div>` : ''}
      <div class="gfoot">א הארציגן יישר כח פאר אייער גרויסע שטיצע<br>Yeshiva Mesivta Torah V'Yirah Maharit D'Satmar</div>`;
     count(document.getElementById('gn'), D.given, 2200);
