@@ -452,7 +452,8 @@ const txSeen = new Set<string>();   // the same event can arrive twice (retries)
 async function memberFor(from: string) {
   const team = await (await rest('/rest/v1/team?select=*')).json();
   const d = digits10(from);
-  return d.length === 10 ? team.find((t: any) => t.phone && digits10(t.phone) === d) : null;
+  // v1.82 (owner): a member may have several numbers in team.phone, separated by commas
+  return d.length === 10 ? team.find((t: any) => t.phone && String(t.phone).split(/[,;\/]+/).some((p: string) => digits10(p) === d)) : null;
 }
 const clip = (s: string) => s.length > MAX_REPLY ? s.slice(0, MAX_REPLY - 1) + '…' : s;
 const xml = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as any)[c]);
