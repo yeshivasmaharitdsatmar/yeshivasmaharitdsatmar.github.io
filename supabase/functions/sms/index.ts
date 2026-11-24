@@ -308,7 +308,7 @@ function shulInfo(q: string, strict = false) {
   const norm = (x: any) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/["'״׳\-–,.:;()]/g, ' ').replace(/\s+/g, ' ').trim();
   // v1.82 (owner typed "ווערפעלעט" for ווערפלעט, and "שול נאמען - ווערפלעט" from the help text): skip filler words,
   // and if nothing matches, compare a "skeleton" without vowel letters (ע א ַ ָ, doubled letters, ײ/װ) – Yiddish spellings vary
-  const words = norm(q).split(' ').filter(w => w && !/^(שול|שולן|נאמען|name|shul|info|אינפא)$/.test(w));
+  const words = norm(q).split(' ').filter(w => w && !/^(שול|שולן|נאמען|name|shul|info|אינפא|\+|און)$/.test(w));
   const skel = (x: string) => norm(x).replace(/[ײ]/g, 'יי').replace(/[װ]/g, 'וו').replace(/[עאaeiouy]/g, '').replace(/(.)\1+/g, '$1');
   const all = Object.entries(C.S.shul).filter(([, x]: any) => !x.del).map(([id, x]: any) => ({ id, ...x }));
   const hay = (s: any) => [s.name, s.eng, s.short, s.addr, s.rabbi].join(' ');
@@ -319,7 +319,7 @@ function shulInfo(q: string, strict = false) {
     if (!S.length) return 'קיין שולן אין ' + city[2];
     let out = '🕍 ' + S.length + ' שולן אין ' + city[2] + ':', n = 0;
     for (const sh of S) { const line = '\n• ' + sh.name; if (out.length + line.length > MAX_REPLY - 40) break; out += line; n++; }
-    return out + (n < S.length ? '\n…און נאך ' + (S.length - n) + '. שיקט: ש ' + city[2] + ' + נאמען' : '');
+    return out + (n < S.length ? '\n…און נאך ' + (S.length - n) + '. שיקט למשל: ש ' + city[2] + ' סקווירא' : '');
   }
   // "ש וויליאמסבורג סקווירא": a place word first or last narrows the search to that place
   if (words.length > 1) for (const [i, rest] of [[0, words.slice(1)], [words.length - 1, words.slice(0, -1)]] as [number, string[]][]) {
