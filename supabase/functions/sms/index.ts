@@ -114,12 +114,15 @@ async function addEvents(rows: any[], by: string) {
 }
 
 // ---------- find a donor by name / phone / #number ----------
+const skelW = (x: string) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/ײ/g, 'יי').replace(/װ/g, 'וו').replace(/[עאaeiouy'"״׳]/g, '').replace(/(.)\1+/g, '$1');
 function find(q: string, only?: Map<number, any>) {
   q = q.trim().toLowerCase();
   const num = q.replace(/^#/, '');
   if (/^\d{1,7}$/.test(num) && C.IDX.by.has(+num) && (!only || only.has(+num))) return [C.IDX.by.get(+num)];
   const words = q.split(/\s+/).filter(Boolean), qd = q.replace(/\D/g, '');
   let L = C.JD.accounts.filter((a: any) => (!only || only.has(a.c)) && ((words.length && words.every(w => a._s.includes(w))) || (qd.length >= 7 && a._s.includes(qd))));
+  // v1.82: nothing found → compare without vowel letters / doubled letters (Yiddish spellings vary: טענענבוים / טעננבוים)
+  if (!L.length && words.length && !qd) { const K = words.map(skelW).filter(Boolean); if (K.length) L = C.JD.accounts.filter((a: any) => (!only || only.has(a.c)) && K.every(k => (a._k || (a._k = skelW(a._s))).includes(k))); }
   L.sort((x: any, y: any) => ((C.IDX.yg.get(y.c) || {}).total || 0) - ((C.IDX.yg.get(x.c) || {}).total || 0));
   return L;
 }
@@ -135,35 +138,36 @@ function pickOne(q: string, only?: Map<number, any>): { a?: any, msg?: string } 
 }
 
 // ---------- commands ----------
+// v1.82 (owner: "easier, not a whole speech"): one Hebrew letter is enough (ט א ב ג ה פ ק נ ש ת), plurals and
+// other spellings work, and the command word may also come last or on its own line ("טענענבוים ב").
 const CMDS: [string[], string][] = [
-  [['טעלעפאן', 'טעל', 'phone', 'tel', 'p'], 'phone'],
-  [['אדרעס', 'address', 'addr', 'a'], 'address'],
-  [['באלאנס', 'balance', 'bal', 'b'], 'balance'],
+  [['טעלעפאן', 'טעלעפאנען', 'טעל', 'נומער', 'נומערן', 'phone', 'tel', 'p', 'ט'], 'phone'],
+  [['אדרעס', 'אדרעסן', 'אדרעסע', 'address', 'addr', 'a', 'א'], 'address'],
+  [['באלאנס', 'בעלענס', 'חוב', 'balance', 'bal', 'b', 'ב'], 'balance'],
   [['אינפא', 'info', 'i'], 'info'],
-  [['געגעבן', 'given', 'gave', 'g'], 'given'],
-  [['היינט', 'today', 't'], 'today'],
-  [['פלעדזשעס', 'pledges', 'pl'], 'pledges'],
-  [['געקאלט', 'called', 'c'], 'called'],
+  [['געגעבן', 'נדבות', 'נדבה', 'באצאלט', 'באצאלונגען', 'באצאלונגן', 'באצאלונג', 'פעימענטס', 'given', 'gave', 'paid', 'payments', 'g', 'ג'], 'given'],
+  [['היינט', 'today', 't', 'ה'], 'today'],
+  [['פלעדזשעס', 'פלעדזשעס', 'פלעדזש', 'pledges', 'pl', 'פ'], 'pledges'],
+  [['געקאלט', 'called', 'c', 'ק'], 'called'],
   [['טאדו', 'טודו', 'todo', 'td', '+'], 'todo'],
-  [['נאטיץ', 'note', 'n'], 'note'],
-  [['שול', 'shul'], 'shul'],
-  [['תלמידים', 'תלמיד', 'students', 'kids'], 'students'],
-  [['באצאלט', 'paid'], 'given'],
-  [['הילף', 'help', '?', 'h'], 'help']
+  [['נאטיץ', 'נאטיצן', 'note', 'n', 'נ'], 'note'],
+  [['שול', 'שולן', 'shul', 's', 'ש'], 'shul'],
+  [['תלמידים', 'תלמיד', 'קינדער', 'students', 'kids', 'ת'], 'students'],
+  [['הילף', 'help', '?', 'h', '؟'], 'help']
 ];
-const HELP = 'YG Fund SMS:\n' +
-  'נאמען - אלע אינפא\n' +
-  'טעלעפאן נאמען\n' +
-  'אדרעס נאמען\n' +
-  'געגעבן נאמען - נדבות לעצטע יאר\n' +
-  'באלאנס נאמען\n' +
-  'היינט - מיינע To-Do\n' +
-  'פלעדזשעס\n' +
-  'געקאלט נאמען\n' +
-  'טאדו טעקסט - נייע To-Do\n' +
-  'נאטיץ נאמען: טעקסט\n' +
-  'שול - די ריי\n' +
-  'שול נאמען - אינפא פון א שול';
+const FILLER = /^(נאמען|name|פון|ביי|אלע|all|לעצטע|יאר|דעם|די|-|–|:|→)$/;
+const HELP = 'YG Fund SMS – שיקט נאר:\n' +
+  'נאמען → אלעס\n' +
+  'ט נאמען → טעלעפאן\n' +
+  'א נאמען → אדרעס\n' +
+  'ב נאמען → באלאנס\n' +
+  'ג נאמען → געגעבן\n' +
+  'ק נאמען → געקאלט\n' +
+  'ש נאמען → שול\n' +
+  'ה → היינט · פ → פלעדזשעס\n' +
+  '+ טעקסט → To-Do\n' +
+  'נ נאמען: טעקסט → נאטיץ\n' +
+  'ביישפיל: ב טענענבוים';
 
 // ---------- 🎓 tuition mode (owner, v1.70) ----------
 // A team member whose name is checked in Settings > users "🎓 SMS" (setting smsTu {name: true}), or whose access is
@@ -193,16 +197,17 @@ function tuFam(code: number) {
   return { f, bal, due, last };
 }
 const tuBalTxt = (n: number) => n < -0.004 ? 'קרעדיט ' + money(-n) : money(n);
-const TUHELP = 'YG Fund SMS – שכר לימוד:\n' +
-  'נאמען - אלע אינפא\n' +
-  'טעלעפאן נאמען\n' +
-  'אדרעס נאמען\n' +
-  'באלאנס נאמען\n' +
-  'געגעבן נאמען - באצאלונגען לעצטע יאר\n' +
-  'תלמידים נאמען\n' +
-  'היינט - מיינע To-Do\n' +
-  'טאדו טעקסט - נייע To-Do\n' +
-  'נאטיץ נאמען: טעקסט';
+const TUHELP = 'YG Fund SMS – שכר לימוד, שיקט נאר:\n' +
+  'נאמען → אלעס\n' +
+  'ט נאמען → טעלעפאן\n' +
+  'א נאמען → אדרעס\n' +
+  'ב נאמען → באלאנס\n' +
+  'ג נאמען → באצאלונגען\n' +
+  'ת נאמען → תלמידים\n' +
+  'ה → היינט\n' +
+  '+ טעקסט → To-Do\n' +
+  'נ נאמען: טעקסט → נאטיץ\n' +
+  'ביישפיל: ב טענענבוים';
 async function tuAnswer(cmd: string, rest: string, member: any): Promise<string> {
   await loadTU();
   const me = member.name, today = todayS();
@@ -262,10 +267,16 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
 
 // 🕍 "שול name" (v1.71): one shul's details – Yiddish/English/short name, address, rabbi, phone, nusach, donors.
 function shulInfo(q: string) {
-  const norm = (x: any) => String(x || '').toLowerCase().replace(/["'״׳\-]/g, ' ').replace(/\s+/g, ' ').trim();
-  const words = norm(q).split(' ').filter(Boolean);
-  const L = Object.entries(C.S.shul).filter(([, x]: any) => !x.del).map(([id, x]: any) => ({ id, ...x }))
-    .filter((s: any) => { const h = norm([s.name, s.eng, s.short, s.addr, s.rabbi].join(' ')); return words.every(w => h.includes(w)); });
+  const norm = (x: any) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/["'״׳\-–,.:;()]/g, ' ').replace(/\s+/g, ' ').trim();
+  // v1.82 (owner typed "ווערפעלעט" for ווערפלעט, and "שול נאמען - ווערפלעט" from the help text): skip filler words,
+  // and if nothing matches, compare a "skeleton" without vowel letters (ע א ַ ָ, doubled letters, ײ/װ) – Yiddish spellings vary
+  const words = norm(q).split(' ').filter(w => w && !/^(שול|שולן|נאמען|name|shul|info|אינפא)$/.test(w));
+  const skel = (x: string) => norm(x).replace(/[ײ]/g, 'יי').replace(/[װ]/g, 'וו').replace(/[עאaeiouy]/g, '').replace(/(.)\1+/g, '$1');
+  const all = Object.entries(C.S.shul).filter(([, x]: any) => !x.del).map(([id, x]: any) => ({ id, ...x }));
+  const hay = (s: any) => [s.name, s.eng, s.short, s.addr, s.rabbi].join(' ');
+  let L = words.length ? all.filter((s: any) => { const h = norm(hay(s)); return words.every(w => h.includes(w)); }) : [];
+  if (!L.length && words.length) L = all.filter((s: any) => { const h = skel(hay(s)); return words.every(w => skel(w) && h.includes(skel(w))); });
+  q = words.join(' ') || q;
   if (!L.length) return 'קיין שול געפונען: ' + q;
   if (L.length > 1) {
     const ex = L.filter((s: any) => [s.name, s.eng, s.short].some(v => norm(v) === norm(q)));
@@ -281,12 +292,14 @@ async function answer(text: string, member: any): Promise<string> {
   const t = text.trim().replace(/\s+/g, ' ');
   if (!t) return isTuMember(member) ? TUHELP : HELP;
   let cmd = 'info', rest = t;
+  const cmdOf = (w: string) => { w = w.toLowerCase().replace(/[.,:!?]+$/, '') || w; const h = CMDS.find(([ws]) => ws.includes(w)); return h ? h[1] : ''; };
   if (t.startsWith('+')) { cmd = 'todo'; rest = t.slice(1); }
   else {
-    const first = t.split(' ')[0].toLowerCase();
-    const hit = CMDS.find(([ws]) => ws.includes(first));
-    if (hit) { cmd = hit[1]; rest = t.slice(first.length); }
+    const W = t.split(' '), c1 = cmdOf(W[0]), cN = W.length > 1 ? cmdOf(W[W.length - 1]) : '';
+    if (c1) { cmd = c1; rest = W.slice(1).join(' '); }
+    else if (cN && !['todo', 'note'].includes(cN)) { cmd = cN; rest = W.slice(0, -1).join(' '); }   // "טענענבוים ב"
   }
+  if (cmd !== 'todo' && cmd !== 'note') rest = rest.split(' ').filter(w => !FILLER.test(w) && !(cmdOf(w) && w.length > 1)).join(' ');
   rest = rest.trim();
   if (isTuMember(member)) return tuAnswer(cmd, rest, member);
   const me = member.name, today = todayS();
@@ -330,7 +343,7 @@ async function answer(text: string, member: any): Promise<string> {
     return 'פלעדזשעס (' + L.length + '):\n' + L.slice(0, 8).map(([c, g]) => { const a = C.IDX.by.get(c); return '• ' + nm(a) + ' ' + money(g.dueNow) + (a.ph[0] ? ' ' + a.ph[0][1] : ''); }).join('\n');
   }
   if (cmd === 'shul' && rest) return shulInfo(rest);
-  if (cmd === 'shul' && SET().shulRot !== true) return 'די ריי פון מיטוואכן איז אפגעשטעלט.\nשיקט: שול נאמען – פאר אינפא פון א שול';
+  if (cmd === 'shul' && SET().shulRot !== true) return 'די ריי פון מיטוואכן איז אפגעשטעלט.\nשיקט: ש נאמען – פאר אינפא פון א שול';
   if (cmd === 'shul') {
     const L = Object.entries(C.S.shul).filter(([, x]: any) => !x.del && !x.paused).map(([id, x]: any) => ({ id, ...x })).sort((a: any, b: any) => (a.ord || 0) - (b.ord || 0));
     if (!L.length) return 'קיין שולן';
