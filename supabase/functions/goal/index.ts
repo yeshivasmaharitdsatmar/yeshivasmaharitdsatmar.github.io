@@ -11,7 +11,7 @@ import nodemailer from 'npm:nodemailer@6.9.16';
 
 const ENV = (k: string) => (globalThis as any).Deno?.env.get(k) || (globalThis as any).process?.env?.[k] || '';
 const SB_URL = () => ENV('SUPABASE_URL');
-const SITE = 'https://yeshivasmaharitdsatmar.github.io/';
+const SITE = 'https://maharit-report.github.io/';   // v1.81: the donor site (separate from the app's address)
 // payment pages (v1.79, owner): settings payUrl (Cardknox) / payUrl2 (Donary) override these; '' hides one
 const PAY_DEF = ['https://secure.cardknox.com/yeshivasmaharitdsatmard', 'https://donary.com/1029'];
 const payLinks = () => { const s = (C.S.settings || {}).s || {}; return [s.payUrl != null ? s.payUrl : PAY_DEF[0], s.payUrl2 != null ? s.payUrl2 : PAY_DEF[1]].map((u: string) => /^https:\/\/[^\s"<>]+$/.test(u || '') ? u : ''); };
