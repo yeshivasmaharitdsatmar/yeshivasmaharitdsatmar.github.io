@@ -115,6 +115,18 @@ async function addEvents(rows: any[], by: string) {
 
 // ---------- find a donor by name / phone / #number ----------
 const skelW = (x: string) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/ײ/g, 'יי').replace(/װ/g, 'וו').replace(/[עאaeiouy'"״׳]/g, '').replace(/(.)\1+/g, '$1');
+const FINAL: Record<string, string> = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
+const fz = (x: string) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7'"״׳]/g, '').replace(/[ךםןףץ]/g, c => FINAL[c]).replace(/ײ/g, 'יי').replace(/װ/g, 'וו').replace(/ױ/g, 'וי').replace(/ה$/, 'א');   // final ה / א are spelled both ways
+const fzK = (x: string) => fz(x).replace(/[עאיוaeiouy]/g, '').replace(/(.)\1+/g, '$1');
+const tolOf = (w: string) => w.length <= 3 ? 0 : w.length <= 6 ? 1 : 2;
+function lev(a: string, b: string) { const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let p = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; }
+// how far a typed word is from a name word: 0 = the name word starts with it; else typos against the same-length start
+function wordDist(q: { w: string, k: string }, t: { w: string, k: string }) {
+  if (t.w.startsWith(q.w) || (q.k && t.k.startsWith(q.k))) return 0;
+  const dk = q.k ? lev(q.k, t.k.slice(0, q.k.length)) : 9;   // typos in the skeleton count only for longer words
+  return Math.min(lev(q.w, t.w.slice(0, q.w.length)), lev(q.w, t.w.slice(0, q.w.length + 1)), dk <= (q.k.length >= 5 ? 1 : 0) ? dk : 9);
+}
 function find(q: string, only?: Map<number, any>) {
   q = q.trim().toLowerCase();
   const num = q.replace(/^#/, '');
@@ -123,14 +135,24 @@ function find(q: string, only?: Map<number, any>) {
   let L = C.JD.accounts.filter((a: any) => (!only || only.has(a.c)) && ((words.length && words.every(w => a._s.includes(w))) || (qd.length >= 7 && a._s.includes(qd))));
   // v1.82: nothing found → compare without vowel letters / doubled letters (Yiddish spellings vary: טענענבוים / טעננבוים)
   if (!L.length && words.length && !qd) { const K = words.map(skelW).filter(Boolean); if (K.length) L = C.JD.accounts.filter((a: any) => (!only || only.has(a.c)) && K.every(k => (a._k || (a._k = skelW(a._s))).includes(k))); }
+  // v1.82 (owner: "פייוו ברעכער" should find פייוויל ברעכער, also when not spelled well): every word must match the
+  // start of a name word, loosely – without vowel letters (ע א י ו), final letters as normal ones, and 1–2 typos allowed
+  if (!L.length && words.length && !qd) {
+    const Q = words.map(w => ({ w: fz(w), k: fzK(w) })).filter(x => x.w);
+    const sc = (a: any) => { const T = a._t || (a._t = String(a.h + ' ' + a.n + ' ' + a.w + ' ' + a.wh).toLowerCase().split(/[\s,.\-]+/).filter((t: string) => t && !/['"״׳]/.test(t)).map((t: string) => ({ w: fz(t), k: fzK(t) })));
+      let tot = 0; for (const q of Q) { let best = 9; for (const t of T) { best = Math.min(best, wordDist(q, t)); if (!best) break; } if (best > tolOf(q.w)) return -1; tot += best; } return tot; };
+    const R: [any, number][] = []; for (const a of C.JD.accounts) { if (only && !only.has(a.c)) continue; const d = sc(a); if (d >= 0) R.push([a, d]); }
+    const m = Math.min(...R.map(r => r[1])); L = R.filter(r => r[1] === m).map(r => r[0]);   // only the closest ones
+    (L as any).fz = true;
+  }
   L.sort((x: any, y: any) => ((C.IDX.yg.get(y.c) || {}).total || 0) - ((C.IDX.yg.get(x.c) || {}).total || 0));
   return L;
 }
 function pickOne(q: string, only?: Map<number, any>): { a?: any, msg?: string } {
   if (!q.trim()) return { msg: 'שרייבט א נאמען נאכן ווארט.' };
-  const L = find(q, only);
+  const L = find(q, only), fzy = !!(L as any).fz;
   if (!L.length) return { msg: 'נישט געפונען: ' + q };
-  if (L.length === 1) return { a: L[0] };
+  if (L.length === 1) return { a: L[0], fz: fzy } as any;
   // exact Hebrew/English full-name match wins
   const ex = L.filter((a: any) => [a.h, a.n].some(v => (v || '').toLowerCase().endsWith(q.trim().toLowerCase())));
   if (ex.length === 1) return { a: ex[0] };
@@ -266,7 +288,23 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
 }
 
 // 🕍 "שול name" (v1.71): one shul's details – Yiddish/English/short name, address, rabbi, phone, nusach, donors.
-function shulInfo(q: string) {
+// v1.82 (owner): "ש מאנטריאל" = every shul in that city/area (Yiddish or English name of the place)
+const SHUL_CITIES: [string[], RegExp, string][] = [
+  [['מאנטריאל', 'מונטריאל', 'montreal', 'אוטרמאנט', 'outremont'], /outremont|montr[eé]al|boisbriand|mile end|\bqc\b/i, 'מאנטריאל'],
+  [['קרית יואל', 'קרית', 'kj', 'kiryas joel', 'monroe', 'מאנרא'], /monroe|\bkj\b|10950/i, 'קרית יואל'],
+  [['מאנסי', 'monsey'], /monsey|10952/i, 'מאנסי'],
+  [['ספרינג וואלי', 'spring valley'], /spring valley|10977/i, 'ספרינג וואלי'],
+  [['וויליאמסבורג', 'ווילי', 'williamsburg', 'wburg'], /williamsburg|11211|11249|11206/i, 'וויליאמסבורג'],
+  [['בארא פארק', 'בארא', 'boro park', 'borough park', 'bp'], /boro(ugh)? park|11219|11204|11218/i, 'בארא פארק'],
+  [['לעיקוואד', 'לייקוואוד', 'lakewood'], /lakewood|08701/i, 'לעיקוואד'],
+  [['מידוואוד', 'midwood', 'flatbush', 'פלעטבוש'], /midwood|flatbush|11230|11210/i, 'מידוואוד'],
+];
+function shulCity(words: string[]) {
+  if (!words.length || words.length > 2) return null;
+  const Q = words.map(w => ({ w: fz(w), k: fzK(w) }));
+  return SHUL_CITIES.find(([keys]) => keys.some(key => { const T = key.split(' ').map(t => ({ w: fz(t), k: fzK(t) })); return T.length === Q.length && Q.every((q, i) => q.w === T[i].w || (q.w.length >= 3 && wordDist(q, T[i]) <= tolOf(q.w) && T[i].w.length - q.w.length <= 2)); })) || null;
+}
+function shulInfo(q: string, strict = false) {
   const norm = (x: any) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/["'״׳\-–,.:;()]/g, ' ').replace(/\s+/g, ' ').trim();
   // v1.82 (owner typed "ווערפעלעט" for ווערפלעט, and "שול נאמען - ווערפלעט" from the help text): skip filler words,
   // and if nothing matches, compare a "skeleton" without vowel letters (ע א ַ ָ, doubled letters, ײ/װ) – Yiddish spellings vary
@@ -274,8 +312,31 @@ function shulInfo(q: string) {
   const skel = (x: string) => norm(x).replace(/[ײ]/g, 'יי').replace(/[װ]/g, 'וו').replace(/[עאaeiouy]/g, '').replace(/(.)\1+/g, '$1');
   const all = Object.entries(C.S.shul).filter(([, x]: any) => !x.del).map(([id, x]: any) => ({ id, ...x }));
   const hay = (s: any) => [s.name, s.eng, s.short, s.addr, s.rabbi].join(' ');
+  q = words.join(' ') || q;
+  const city = shulCity(words);
+  if (city) {
+    const S = all.filter((sh: any) => city[1].test([sh.city, sh.addr, sh.zip].join(' '))).sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'he'));
+    if (!S.length) return 'קיין שולן אין ' + city[2];
+    let out = '🕍 ' + S.length + ' שולן אין ' + city[2] + ':', n = 0;
+    for (const sh of S) { const line = '\n• ' + sh.name; if (out.length + line.length > MAX_REPLY - 40) break; out += line; n++; }
+    return out + (n < S.length ? '\n…און נאך ' + (S.length - n) + '. שיקט: ש ' + city[2] + ' + נאמען' : '');
+  }
+  // "ש וויליאמסבורג סקווירא": a place word first or last narrows the search to that place
+  if (words.length > 1) for (const [i, rest] of [[0, words.slice(1)], [words.length - 1, words.slice(0, -1)]] as [number, string[]][]) {
+    const c = shulCity([words[i]]); if (!c) continue;
+    const inC = all.filter((sh: any) => c[1].test([sh.city, sh.addr, sh.zip].join(' ')));
+    if (inC.length) { all.splice(0, all.length, ...inC); words.splice(0, words.length, ...rest); }
+    break;
+  }
   let L = words.length ? all.filter((s: any) => { const h = norm(hay(s)); return words.every(w => h.includes(w)); }) : [];
   if (!L.length && words.length) L = all.filter((s: any) => { const h = skel(hay(s)); return words.every(w => skel(w) && h.includes(skel(w))); });
+  if (!L.length && words.length && !strict) {   // v1.82: loose, like donor names (start of a word, 1–2 typos)
+    const Q = words.map(w => ({ w: fz(w), k: fzK(w) })).filter(x => x.w);
+    const R: [any, number][] = [];
+    for (const sh of all) { const T = [sh.name, sh.eng, sh.short].join(' ').toLowerCase().split(/[\s,.\-–]+/).filter(Boolean).map((t: string) => ({ w: fz(t), k: fzK(t) }));
+      let tot = 0, ok = true; for (const q of Q) { let b = 9; for (const t of T) b = Math.min(b, wordDist(q, t)); if (b > tolOf(q.w)) { ok = false; break; } tot += b; } if (ok) R.push([sh, tot]); }
+    const m = Math.min(...R.map(r => r[1])); L = R.filter(r => r[1] === m).map(r => r[0]);
+  }
   q = words.join(' ') || q;
   if (!L.length) return 'קיין שול געפונען: ' + q;
   if (L.length > 1) {
@@ -353,6 +414,7 @@ async function answer(text: string, member: any): Promise<string> {
     return '🕍 ' + lines.join('\n');
   }
   // donor commands (v1.71: a name that is no donor but a shul answers with the shul)
+  if (cmd === 'info') { const L0 = find(rest); if (!L0.length || (L0 as any).fz) { const si = shulInfo(rest); if (/^🕍/.test(si)) return si; } }
   const r = pickOne(rest); if (!r.a) { if (cmd === 'info' && /^נישט געפונען/.test(r.msg || '')) { const si = shulInfo(rest); if (!/^קיין שול/.test(si)) return si; } return r.msg!; }
   const a = r.a, g = C.IDX.yg.get(a.c), p = C.IDX.pl.get(a.c);
   const phones = a.ph.slice(0, 3).map((x: any) => (x[0] ? x[0] + ' ' : '') + x[1]).join('\n') || 'קיין טעלעפאן';
