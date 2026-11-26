@@ -146,7 +146,7 @@ function vCol() {
   $('#main').innerHTML = `<div class="row"><div><h2>📞 ${esc(colTitle())}</h2><p class="sub">${esc((colTabs().find(x => x[0] === tab) || [])[1] || '')} · ${R.length.toLocaleString()} אקאונטס</p></div><div class="spacer"></div>
      ${tab !== 'all' ? `<button class="btn gold" onclick="colStart('${tab}')">▶ Calling mode</button>` : ''}${colArea() === 'fund' ? `<span class="dim" style="font-size:13px">אדער:</span><select class="mini" onchange="if(this.value)colStart(this.value)"><option value="">▶ Calling mode פון א רופארט…</option>${colSources().filter(([k]) => k.startsWith('jr:')).map(([k, l]) => `<option value="${esc(k)}">${esc(l)}</option>`).join('')}</select>` : ''}</div>
    <div class="tiles">
-    <div class="tile t7"><i>💰</i><h3>${colArea() === 'tu' ? 'שולדיג יעצט' : 'פלעדזשעס פעליג'}</h3><b class="bal">${money(out)}</b><span>${T.all.filter(r => r.amt > 0.5).length} אקאונטס${narrowed ? ' · 🔎' : ''}</span></div>
+    ${colArea() === 'tu' ? `<div class="tile t7"><i>💰</i><h3>שולדיג יעצט</h3><b class="bal">${money(out)}</b><span>${T.all.filter(r => r.amt > 0.5).length} אקאונטס${narrowed ? ' · 🔎' : ''}</span></div>` : ''}
     <div class="tile t1" onclick="ui.colTab='today';go('col')"><i>📞</i><h3>קאלן היינט</h3><b>${T.today.length - done}</b><span>${done} פון ${T.today.length} געטון${narrowed ? ' · 🔎' : ''}</span></div>
     <div class="tile t5" onclick="ui.colTab='cb';go('col')"><i>🔁</i><h3>${colArea() === 'tu' ? 'אפגעשטופט' : 'היינט צוריק קאלן'}</h3><b>${T.cb.filter(r => !r.done).length}</b><span>${narrowed ? '🔎' : '&nbsp;'}</span></div>
     <div class="tile t4" onclick="ui.colTab='hold';go('col')"><i>⏸</i><h3>ON HOLD</h3><b>${T.hold.length}</b><span>${narrowed ? '🔎' : '&nbsp;'}</span></div>
