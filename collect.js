@@ -264,7 +264,7 @@ function vCalling() {
       <label class="f">🔁 רוף צוריק אום${dateField('cmcb', '', { clear: true })}</label>
       <label style="display:flex;gap:8px;align-items:center;font-size:14px;align-self:end"><input type="checkbox" id="cmhold" ${s.hold ? 'checked' : ''}> ⏸ On hold</label>
       <label class="f" style="grid-column:1/-1">🗂️ שיק צו אפיס ארבעט (ליידיג = נישט)<input id="cmtask" placeholder="למשל: שיקן א רעסיט, רופן צוריק די ווייב…"></label>
-      <div class="f"><span>פאר וועמען (ביז 2)</span><div id="cmtwho" class="cmtwho">${USERS().map(u => `<label class="chip" style="--uc:${userColor(u)}"><input type="checkbox" value="${esc(u)}" ${u === me ? 'checked' : ''} onchange="cmtWho(this)"> ${esc(u)}</label>`).join('')}</div></div>
+      <div class="f"><span>פאר וועמען (מען קען קלייבן אפאר)</span>${whoPick('cmtwho', [me])}</div>
       <label class="f">ביז ווען${dateField('cmtdue', todayS())}</label></div>
      <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="ui.cm.i++;vCalling()">Skip</button><button class="btn gold" onclick="colSave(${code})">✓ Save & next</button></div>
      <h3 style="margin-top:16px">📝 נאטיצן</h3>${hist.map(h => `<div class="cmh">💬 ${esc(h.text)} <small class="dim">– ${userChip(h.by || '')} · ${fmtD((h.at || '').slice(0, 10))}${h.edAt ? ' (טוישט)' : ''}</small>${histBtns(h._id, 'closeM();render()')}</div>`).join('') || '<p class="dim">—</p>'}
@@ -273,7 +273,7 @@ function vCalling() {
      ${codes.map((c, j) => { const rr = map.get(c) || { amt: 0 }, aa = IDX.by.get(c) || {}, dn = (colSt(c).outAt || '').slice(0, 10) === t; return `<div class="cmli${j === cm.i ? ' on' : ''}${dn ? ' done' : ''}" onclick="ui.cm.i=${j};vCalling()"><span>${j + 1}</span><b>${esc(aa.h || aa.n || '#' + c)}</b><i>${money(isJr && !(rr.amt > 0.009) ? (IDX.yg.get(c) || {}).total || 0 : rr.amt)}</i></div>`; }).join('')}
     </div></div>`;
   ui.cmOut = '';
-  cmSearchInit();
+  cmSearchInit(); wpInit($('#main'));
   initDateFields($('#main'));   // vCalling is also redrawn without render() (prev/next, save)
   setTimeout(() => { const e = $('.cmli.on'); if (e) e.scrollIntoView({ block: 'nearest' }); }, 30);
 }
@@ -319,10 +319,10 @@ async function colSave(code) {
   const k = ui.cmOut, note = $('#cmnote').value.trim(), cb = $('#cmcb').value, hold = $('#cmhold').checked, s = colSt(code);
   const tTitle = ($('#cmtask') ? $('#cmtask').value : '').trim();
   if (tTitle) {   // 🗂️ owner (v1.51): a note from the call goes to someone's office work, linked to this account
-    const tp = { title: tTitle, due: $('#cmtdue').value || todayS(), who: cmtWhoList()[0] || me, who2: cmtWhoList()[1] || '', code, pri: 'norm', note: '', repeat: '', done: false, priv: false, cat: 'call' };
+    const tp = { title: tTitle, due: $('#cmtdue').value || todayS(), whos: cmtWhoList().length ? cmtWhoList() : [me], code, pri: 'norm', note: '', repeat: '', done: false, priv: false, cat: 'call' };
     if (AREA === 'tu') tp.area = 'tu';
     await emitTask(uid(), tp);
-    if (!k && !note && !cb && hold === !!s.hold) { toast('✓ 🗂️ ' + tp.who + (tp.who2 ? ' + ' + tp.who2 : '')); $('#cmtask').value = ''; return; }
+    if (!k && !note && !cb && hold === !!s.hold) { toast('✓ 🗂️ ' + tp.whos.join(' + ')); $('#cmtask').value = ''; return; }
   }
   if (!k && !note && !cb && hold === !!s.hold) { toast('קלייבט וואס איז געווען, אדער שרייבט א נאטיץ'); return; }
   const o = COL_OUT_ALL.find(x => x[0] === k), now = new Date().toISOString();
@@ -441,5 +441,4 @@ function vDone() {
 }
 
 // 🗂️ office work from Calling mode for one or two team members (owner, v1.62)
-function cmtWhoList() { return [...document.querySelectorAll('#cmtwho input:checked')].map(x => x.value); }
-function cmtWho(el) { if (el.checked && cmtWhoList().length > 2) { el.checked = false; toast('⚠️ מאקסימום 2'); } }
+function cmtWhoList() { return whoPickVals('cmtwho'); }

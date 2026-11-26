@@ -45,7 +45,7 @@ export function due(S: any, team: any[], now = Date.now()) {
     // owner (v1.52): a task counts from its day (due date, New York midnight ≈ 05:00 UTC) if that is after it was made
     const arr = x.due && x.due + 'T05:00:00.000Z' > x.created ? x.due + 'T05:00:00.000Z' : x.created;
     if (x.created < START || arr > cut) continue;
-    for (const n of [x.who, x.who2]) {
+    for (const n of (Array.isArray(x.whos) ? x.whos : [x.who, x.who2])) {   // whos = several people (app v1.84)
       if (!n || n === x.from || !byName.has(n)) continue;
       const email = byName.get(n)!, seen = (S.seen[email + '|' + (x.area || 'fund')] || {}).at || '';
       if (seen >= arr || S.remind[id + '|' + n]) continue;
