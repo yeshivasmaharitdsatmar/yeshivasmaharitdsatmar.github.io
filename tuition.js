@@ -273,7 +273,7 @@ function vTuBill() {
   if (!tuReady('tubill')) return;
   const Y = tuYears(), now = HEB.parts(todayS()), nowY = tuSY(todayS()), max = Math.max(...Y.map(y => y.b), 1), shown = Y.slice(0, ui.tuBN || 4);
   $('#main').innerHTML = `<div class="row"><div><h2>🧾 Billing – שכר לימוד</h2><p class="sub">יעדעס יאר גייט פון <b>חשון ביז תשרי</b>; יעדן חודש ווערט א ביל. אין יעדן קעסטל: וויפיל מ'האט געבילט, וויפיל איז אריינגעקומען, און וויפיל איז נאך אפן. דריקט אויף א חודש צו זען די פאמיליעס.</p></div><div class="spacer"></div>
-     <button class="btn ghost" onclick="tuBillXls()">⬇ Excel</button></div>
+     <button class="btn ghost" onclick="tuPerForm()">⬇ Excel by Period</button> <button class="btn ghost" onclick="tuBillXls()">⬇ Excel</button></div>
    ${shown.map(y => `<div class="yrcard"><div class="row" style="margin:0 0 8px"><b class="yr">${HEB.gem(y.y)}</b><div class="bar" style="flex:1;height:12px;margin:0"><i style="width:${y.b / max * 100}%"></i></div>
      <span class="dim" style="font-size:13px">${y.n.size} פאמיליעס · ${TU.contracts.filter(c => tuHY(c[2]) === y.y).length} קאנטראקטן</span></div>
     ${tuPctLine(y.y)}
@@ -305,6 +305,35 @@ function tuBillXls() {
   const Y = tuYears(), rows = [['Year', 'Month', 'Billed', 'Paid', 'Open']];
   Y.forEach(y => { tuMonthsOf(y.y).forEach(m => { const v = y.m[m]; if (v) rows.push([HEB.gem(y.y), HEB.MONTHS[m], r2(v.b), r2(v.p), r2(v.o)]); }); rows.push([HEB.gem(y.y), 'ס"ה', r2(y.b), r2(y.p), r2(y.o)]); });
   xlsx([{ name: 'Billing', rows }, { name: 'Families', rows: [['Code', 'Family (Hebrew)', 'Family', 'Due now', 'Balance', 'Billed this year', 'Paid this year', 'Last payment']].concat(tuCalc().L.filter(f => f.cur || f.bal > 0.5).map(f => { const a = IDX.by.get(f.code) || {}; return [f.code, a.h || '', a.n || '', r2(f.due), r2(f.bal), r2(f.yrBilled), r2(f.yrPaid), f.last]; })) }], 'tuition-billing.xlsx');
+}
+
+// ---------- ⬇ fathers billed in chosen JLS periods (owner, v1.89: "all fathers billed in YG2027, RG2027" – Yiddish + English names, phones) ----------
+function tuPeriods() {
+  const M = new Map();
+  TU.charges.forEach(c => { const p = String(c[11] || '').trim(); if (!p) return; (M.get(p) || (M.set(p, new Set()), M.get(p))).add(c[1]); });
+  return [...M].map(([p, s]) => ({ p, n: s.size })).sort((a, b) => b.p.localeCompare(a.p));
+}
+function tuPerForm() {
+  const P = tuPeriods(), yr = String(new Date().getFullYear() + 1);
+  modal(`<div class="row"><h2 style="margin:0">⬇ Excel by Period</h2><div class="spacer"></div><button class="btn ghost sm" onclick="closeM()">Back</button></div>
+   <p class="sub">קלויבט אויס די Periods. די עקסעל האט יעדן טאטע וואס איז געבילט געווארן אין איינס פון זיי (איינמאל), אידיש און ענגליש, מיט די טעלעפאן נאמבערס.</p>
+   <div class="scroll" style="max-height:55vh">${P.map(x => `<label style="display:block;padding:4px 0"><input type="checkbox" class="tuper" value="${esc(x.p)}"${/^(YG|RG)/i.test(x.p) && x.p.endsWith(yr) ? ' checked' : ''}> <b dir="ltr">${esc(x.p)}</b> <small class="dim">${x.n} פאמיליעס</small></label>`).join('') || '<div class="empty">—</div>'}</div>
+   <div class="row"><div class="spacer"></div><button class="btn" onclick="tuPerXls()">⬇ Excel</button></div>`);
+}
+function tuPerXls() {
+  const want = new Set([...document.querySelectorAll('.tuper:checked')].map(e => e.value)); if (!want.size) return toast('Choose a period');
+  const F = new Map();
+  TU.charges.forEach(c => { const p = String(c[11] || '').trim(); if (want.has(p)) (F.get(c[1]) || (F.set(c[1], new Set()), F.get(c[1]))).add(p); });
+  const cellFirst = ph => (ph || []).slice().sort((a, b) => (/cell|סעל/i.test(b[0] || '') ? 1 : 0) - (/cell|סעל/i.test(a[0] || '') ? 1 : 0));
+  const R = [...F].map(([code, ps]) => ({ code, a: IDX.by.get(code) || {}, ps: [...ps].sort().join(', ') }))
+    .sort((x, y) => (x.a.lh || x.a.h || '').localeCompare(y.a.lh || y.a.h || '', 'he') || (x.a.h || '').localeCompare(y.a.h || '', 'he'));
+  const n = Math.max(1, ...R.map(r => (r.a.ph || []).length));
+  const head = ['Code', 'טאטע (אידיש)', 'Father (English)', 'מאמע (אידיש)', 'Mother (English)'];
+  for (let i = 1; i <= n; i++) head.push('Phone ' + i);
+  head.push('Address', 'Periods');
+  const rows = [head].concat(R.map(r => { const ph = cellFirst(r.a.ph).map(p => [p[1], p[0]].filter(Boolean).join(' ')); while (ph.length < n) ph.push(''); return [r.code, r.a.h || '', r.a.n || '', r.a.wh || '', r.a.w || ''].concat(ph, [r.a.a || '', r.ps]); }));
+  xlsx([{ name: 'Fathers', rows }], 'fathers-' + [...want].sort().join('-') + '.xlsx');
+  toast('✓ ' + R.length + ' fathers');
 }
 
 // ---------- 📄 tuition statements – one page per family for one Hebrew month, laid out like the JLS "Statements TCYG" report ----------
