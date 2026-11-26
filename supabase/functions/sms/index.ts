@@ -167,7 +167,7 @@ const CMDS: [string[], string][] = [
   [['אדרעס', 'אדרעסן', 'אדרעסע', 'address', 'addr', 'a', 'א'], 'address'],
   [['באלאנס', 'בעלענס', 'חוב', 'balance', 'bal', 'b', 'ב'], 'balance'],
   [['אינפא', 'info', 'i'], 'info'],
-  [['געגעבן', 'נדבות', 'נדבה', 'באצאלט', 'באצאלונגען', 'באצאלונגן', 'באצאלונג', 'פעימענטס', 'given', 'gave', 'paid', 'payments', 'g', 'ג'], 'given'],
+  [['געגעבן', 'נדבות', 'נדבה', 'באצאלט', 'באצאלונגען', 'באצאלונגן', 'באצאלונג', 'פעימענטס', 'given', 'gave', 'paid', 'payments', 'g', 'ג', 'גג', 'gg'], 'given'],
   [['היינט', 'today', 't', 'ה'], 'today'],
   [['פלעדזשעס', 'פלעדזשעס', 'פלעדזש', 'pledges', 'pl', 'פ'], 'pledges'],
   [['געקאלט', 'called', 'c', 'ק'], 'called'],
@@ -177,13 +177,34 @@ const CMDS: [string[], string][] = [
   [['תלמידים', 'תלמיד', 'קינדער', 'students', 'kids', 'ת'], 'students'],
   [['הילף', 'help', '?', 'h', '؟'], 'help']
 ];
-const FILLER = /^(נאמען|name|פון|ביי|אלע|all|לעצטע|יאר|דעם|די|-|–|:|→)$/;
+const FILLER = /^(נאמען|name|פון|ביי|אלע|אלעס|כל|all|לעצטע|יאר|דעם|די|-|–|:|→)$/;
+// v1.85 (owner): "ג אלע name" (or "גג name") = EVERY payment of that account, not only the last 12 months
+const ALLW = /^(אלע|אלעס|כל|all|גג|gg)$/i;
+// every payment, newest first, with a subtotal line per English year; capped so it fits one reply (Twilio max 1600 chars)
+function allPays(head: string, L: any[], di: number, ai: number, ri: number) {
+  const P = L.filter((x: any) => !x[ri] && validD(x[di])).sort((x: any, y: any) => y[di].localeCompare(x[di]) || (y[0] || 0) - (x[0] || 0));
+  if (!P.length) return head + '\nקיין באצאלונגען';
+  const sum = (A: any[]) => A.reduce((s: number, x: any) => s + (+x[ai] || 0), 0);
+  const out = [head, 'אלע באצאלונגען: ' + money(sum(P)) + ' (' + P.length + ')'];
+  let len = out.join('\n').length, shown = 0, yr = '';
+  for (const x of P) {
+    const add: string[] = [];
+    if (x[di].slice(0, 4) !== yr) { yr = x[di].slice(0, 4); const Y = P.filter((z: any) => z[di].startsWith(yr)); add.push('— ' + yr + ': ' + money(sum(Y)) + ' (' + Y.length + ')'); }
+    add.push(shortD(x[di]) + ' ' + money(x[ai]));
+    const t = add.join('\n');
+    if (len + t.length + 40 > 1500) break;
+    out.push(t); len += t.length + 1; shown++;
+  }
+  if (shown < P.length) out.push('…און נאך ' + (P.length - shown) + ' – זעט אין די פראגראם');
+  return out.join('\n');
+}
 const HELP = 'YG Fund SMS – שיקט נאר:\n' +
   'נאמען → אלעס\n' +
   'ט נאמען → טעלעפאן\n' +
   'א נאמען → אדרעס\n' +
   'ב נאמען → באלאנס\n' +
   'ג נאמען → געגעבן\n' +
+  'גג נאמען → אלע באצאלונגען\n' +
   'ק נאמען → געקאלט\n' +
   'ש נאמען → שול\n' +
   'ה → היינט · פ → פלעדזשעס\n' +
@@ -225,12 +246,13 @@ const TUHELP = 'YG Fund SMS – שכר לימוד, שיקט נאר:\n' +
   'א נאמען → אדרעס\n' +
   'ב נאמען → באלאנס\n' +
   'ג נאמען → באצאלונגען\n' +
+  'גג נאמען → אלע באצאלונגען\n' +
   'ת נאמען → תלמידים\n' +
   'ה → היינט\n' +
   '+ טעקסט → To-Do\n' +
   'נ נאמען: טעקסט → נאטיץ\n' +
   'ביישפיל: ב טענענבוים';
-async function tuAnswer(cmd: string, rest: string, member: any): Promise<string> {
+async function tuAnswer(cmd: string, rest: string, member: any, all = false): Promise<string> {
   await loadTU();
   const me = member.name, today = todayS();
   if (cmd === 'help') return TUHELP;
@@ -273,6 +295,7 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
   if (cmd === 'address') return nm(a) + '\n' + (a.a || 'קיין אדרעס');
   if (cmd === 'balance') return nm(a) + '\nבאלאנס: ' + tuBalTxt(T.bal) + (T.due > 0.5 ? '\nפעליג יעצט: ' + money(T.due) : '');
   if (cmd === 'students') return nm(a) + '\n' + (kidsNow.length ? kidsNow.map(kidTxt).join('\n') : 'קיין תלמידים יעצט');
+  if (cmd === 'given' && all) return allPays(nm(a) + ' #' + a.c, T.f.pay, 2, 3, 7);
   if (cmd === 'given') {
     const yearAgo = addMonths(today, -12);
     const L = T.f.pay.filter((p: any) => !p[7] && p[2] && p[2] >= yearAgo && p[2] <= today).sort((x: any, y: any) => y[2].localeCompare(x[2]));
@@ -353,6 +376,7 @@ async function answer(text: string, member: any): Promise<string> {
   const t = text.trim().replace(/\s+/g, ' ');
   if (!t) return isTuMember(member) ? TUHELP : HELP;
   let cmd = 'info', rest = t;
+  const all = t.split(' ').some(w => ALLW.test(w.replace(/[.,:!?]+$/, '')));
   const cmdOf = (w: string) => { w = w.toLowerCase().replace(/[.,:!?]+$/, '') || w; const h = CMDS.find(([ws]) => ws.includes(w)); return h ? h[1] : ''; };
   if (t.startsWith('+')) { cmd = 'todo'; rest = t.slice(1); }
   else {
@@ -362,7 +386,7 @@ async function answer(text: string, member: any): Promise<string> {
   }
   if (cmd !== 'todo' && cmd !== 'note') rest = rest.split(' ').filter(w => !FILLER.test(w) && !(cmdOf(w) && w.length > 1)).join(' ');
   rest = rest.trim();
-  if (isTuMember(member)) return tuAnswer(cmd, rest, member);
+  if (isTuMember(member)) return tuAnswer(cmd, rest, member, all);
   const me = member.name, today = todayS();
   if (cmd === 'help') return HELP;
 
@@ -424,6 +448,7 @@ async function answer(text: string, member: any): Promise<string> {
   if (cmd === 'phone') return nm(a) + '\n' + phones;
   if (cmd === 'address') return nm(a) + '\n' + (a.a || 'קיין אדרעס');
   if (cmd === 'balance') return nm(a) + '\nבאלאנס: ' + money(p ? p.open : 0) + (p && p.dueNow > 0.009 ? '\nפעליג יעצט: ' + money(p.dueNow) : '');
+  if (cmd === 'given' && all) return allPays(nm(a) + ' #' + a.c, g ? g.list : [], 2, 3, 9);
   if (cmd === 'given') {
     if (!lastYear.length) return nm(a) + '\nלעצטע יאר: גארנישט' + (g && g.last ? '\nלעצטע מאל: ' + money(g.lastAmt) + ' ' + shortD(g.last) : '');
     return nm(a) + '\nלעצטע יאר: ' + money(lyTotal) + ' (' + lastYear.length + ')\n' + lastYear.slice(0, 6).map((x: any) => shortD(x[2]) + ' ' + money(x[3])).join('\n');
