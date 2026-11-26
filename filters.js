@@ -34,8 +34,8 @@ function fltMatch(f, code) {
   }
   if (f.tag && !(typeof tagsOf === 'function' && tagsOf(code).includes(f.tag))) return false;
   if (f.who) {
-    const w = (S.acct[code] || {})[AREA === 'tu' ? 'tuWho' : 'assigned'] || '';
-    if (f.who === '__none' ? w : f.who === '__me' ? w !== me : w !== f.who) return false;
+    const st = S.acct[code] || {}, w = AREA === 'tu' ? [st.tuWho].filter(Boolean) : acctWhos(st);   // several people (v1.85)
+    if (f.who === '__none' ? w.length : !w.includes(f.who === '__me' ? me : f.who)) return false;
   }
   const g = IDX.yg.get(code) || { total: 0, last: '' };
   if (f.minTotal && g.total < +f.minTotal) return false;

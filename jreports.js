@@ -56,10 +56,10 @@ function vJrep() {
   const V = qVars(ui.jrQ || ''), who = ui.jrWho || '';
   const L = all.filter(a => {
     if (V.length && !qHit(V, a._s)) return false;
-    const as = (S.acct[a.c] || {}).assigned || '';
-    if (who === '__me' && as !== me) return false;
-    if (who === '__none' && as) return false;
-    if (who && who !== '__me' && who !== '__none' && as !== who) return false;
+    const as = acctWhos(S.acct[a.c]);
+    if (who === '__me' && !as.includes(me)) return false;
+    if (who === '__none' && as.length) return false;
+    if (who && who !== '__me' && who !== '__none' && !as.includes(who)) return false;
     return true;
   });
   window._jrL = L; ui.jrN = ui.jrN || 200;
@@ -117,7 +117,7 @@ async function jrDel(id) { if (!confirm('אויסמעקן דעם רופארט?')
 function jrExcel() {
   const D = jrDefs(), cur = D.find(d => d.id === ui.jr) || D[0]; if (!cur) return;
   const X = jrIndex(), T = (cur.udf || '').toUpperCase();
-  xlsx([{ name: cur.name, rows: [['#', 'נאמען', 'English', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', T || 'UDF', 'YG סך הכל', 'לעצטע מתנה', 'פלעגס', 'ווער קאלט', 'לעצטע נאטיץ']].concat(window._jrL.map(a => { const g = IDX.yg.get(a.c) || {}, st = S.acct[a.c] || {}, ln = (window._ln && window._ln.get(a.c)) || {}; return [a.c, a.h || a.n, a.n, (a.ph[0] || [])[1] || '', (a.ph[1] || [])[1] || '', a.a, ((X.udf.get(a.c) || {})[T] || []).join(', '), r2(g.total), g.last || '', tagsOf(a.c).join(', '), st.assigned || '', ln.text || '']; })) }], 'report-' + (cur.camp || 'list') + '-' + todayS() + '.xlsx');
+  xlsx([{ name: cur.name, rows: [['#', 'נאמען', 'English', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', T || 'UDF', 'YG סך הכל', 'לעצטע מתנה', 'פלעגס', 'ווער קאלט', 'לעצטע נאטיץ']].concat(window._jrL.map(a => { const g = IDX.yg.get(a.c) || {}, st = S.acct[a.c] || {}, ln = (window._ln && window._ln.get(a.c)) || {}; return [a.c, a.h || a.n, a.n, (a.ph[0] || [])[1] || '', (a.ph[1] || [])[1] || '', a.a, ((X.udf.get(a.c) || {})[T] || []).join(', '), r2(g.total), g.last || '', tagsOf(a.c).join(', '), acctWhos(st).join(' + '), ln.text || '']; })) }], 'report-' + (cur.camp || 'list') + '-' + todayS() + '.xlsx');
 }
 
 // ---------- 🏷️ tags (flags) on accounts: acct.tags = ['...'] ----------

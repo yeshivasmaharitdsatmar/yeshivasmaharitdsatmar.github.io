@@ -13,6 +13,9 @@ const taskMine = x => taskWhos(x).includes(me);
 const taskDue = x => !x.due || x.due <= todayS();
 // when a task "arrives" for the 🔔 popup / seen marks: created, or the start of its day if that is later
 const taskArr = x => { const d = x.due ? new Date(x.due + 'T00:00:00').toISOString() : ''; return (x.created || '') > d ? (x.created || '') : d; };
+// owner (v1.85): "אחראי" (who calls an account) can be several people – acct.asg [names]; acct.assigned = the first
+const acctWhos = st => { st = st || {}; return Array.isArray(st.asg) ? st.asg.filter(Boolean) : [st.assigned].filter(Boolean); };
+const asgP = l => { l = [...new Set((l || []).filter(Boolean))]; return { assigned: l[0] || '', asg: l }; };
 const taskWho = x => taskWhos(x).join(' + ') || 'נישט צוגעטיילט';
 // Every event on a private task carries priv+owner, so the database never shows it to others.
 // Each team member has a colour (order of the team list); a task shows the colour of the one who asked for it.

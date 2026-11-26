@@ -156,7 +156,7 @@ function vCol() {
    <div class="collist">${R.slice(0, ui.colN).map((r, i) => colRow(r, i, tab)).join('') || (needFlt ? `<div class="empty">👥 דא זענען אלע ${JD.accounts.length.toLocaleString()} אקאונטס פון JLS (אויך די וואס האבן קיינמאל נישט געגעבן צו YG).<br>דריקט <b>🔎 פילטער</b> אויבן, למשל UDF4 = 1,2,3 און נאך נישט געגעבן צו דעם דינער.</div>` : '<div class="empty">🎉 גארנישט דא</div>')}</div>
    ${R.length > ui.colN ? `<div class="more"><button class="btn ghost" onclick="ui.colN+=300;vCol()">Show more (${(R.length - ui.colN).toLocaleString()})</button></div>` : ''}`;
 }
-const colWho = c => { const w = (S.acct[c] || {})[colArea() === 'tu' ? 'tuWho' : 'assigned']; return w ? ' ' + userChip(w) : ''; };
+const colWho = c => { const st = S.acct[c] || {}, w = colArea() === 'tu' ? [st.tuWho].filter(Boolean) : acctWhos(st); return w.length ? ' ' + w.map(userChip).join(' ') : ''; };
 function colRow(r, i, tab) {
   const s = r.s || colSt(r.code), h = colLastNote(r.code), o = COL_OUT_ALL.find(x => x[0] === s.out);
   const col = r.f && r.f.st ? ({ ok: '#2e9d5b', fix: '#e0a400', ign: '#d2452f' })[r.f.st.k] || '#c9c2b2' : (r.amt > 0.5 ? '#d2452f' : '#c9c2b2');
@@ -392,7 +392,7 @@ function bulkIgn(k, on) { const C = selCodes(k); return bulkEmit(C.map(c => ({ k
 function bulkHold(k, on) { const C = selCodes(k); return bulkEmit(C.map(c => ({ k: 'col', eid: colKey(c), p: { hold: on } })), C.length + (on ? ' – On hold' : ' – נישט מער On hold')); }
 function bulkWho(k, who) {
   const C = selCodes(k), f = colArea() === 'tu' ? 'tuWho' : 'assigned';
-  return bulkEmit(C.map(c => ({ k: 'acct', eid: String(c), p: { [f]: who } })), C.length + ' – ' + (who || 'נישט צוגעטיילט'));
+  return bulkEmit(C.map(c => ({ k: 'acct', eid: String(c), p: f === 'assigned' ? asgP(who ? [who] : []) : { [f]: who } })), C.length + ' – ' + (who || 'נישט צוגעטיילט'));
 }
 function bulkNoteForm(k) {
   modal(`<h2>📝 נאטיץ פאר ${selSet(k).size} אקאונטס</h2><label class="f">די נאטיץ<textarea id="bkn" rows="3"></textarea></label>
