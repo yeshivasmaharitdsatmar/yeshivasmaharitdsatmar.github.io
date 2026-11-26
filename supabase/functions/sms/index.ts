@@ -252,7 +252,7 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
     for (const [, x] of Object.entries(C.S.task) as any) {
       if (!x.title || x.done || x.del || x.area !== 'tu' || (x.due && x.due > today)) continue;
       if (x.priv && (x.owner || '').toLowerCase() !== member.email.toLowerCase()) continue;
-      if (x.who === me || x.who2 === me) out.push('• ' + x.title);
+      if ((Array.isArray(x.whos) ? x.whos : [x.who, x.who2]).includes(me)) out.push('• ' + x.title);
     }
     const mine: string[] = [];
     for (const [c, st] of Object.entries(C.S.acct) as any) {
@@ -384,7 +384,7 @@ async function answer(text: string, member: any): Promise<string> {
     for (const [, x] of Object.entries(C.S.task) as any) {
       if (!x.title || x.done || x.del || !x.due || x.due > today) continue;
       if (x.priv && (x.owner || '').toLowerCase() !== member.email.toLowerCase()) continue;
-      if (x.who === me || x.who2 === me) out.push('• ' + x.title);
+      if ((Array.isArray(x.whos) ? x.whos : [x.who, x.who2]).includes(me)) out.push('• ' + x.title);
     }
     const codes = new Set([...C.IDX.yg.keys(), ...Object.keys(C.S.acct).map(Number)]);
     let asks = 0; const askL: string[] = [];

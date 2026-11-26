@@ -436,3 +436,11 @@ a.name:hover{color:#2a5ba8;border-bottom-style:solid}
 /* 📌 the page's top row (title + buttons) stays under the header while scrolling (owner, v1.73) */
 @media (min-width:901px){#main > .row:first-child{position:sticky;top:var(--hdr,0px);z-index:4;background:var(--bg);padding-top:10px;padding-bottom:8px;box-shadow:0 6px 8px -8px rgba(0,0,0,.25)}}
 .cmqa{font-size:12px;color:var(--muted);margin-top:2px}
+/* one "for whom" field with a scroll-down list of names (v1.84) */
+.wpick{position:relative}
+.wpbtn{width:100%;display:flex;align-items:center;gap:6px;justify-content:space-between;min-height:38px;padding:5px 10px;border:1px solid var(--line,#d5dbe5);border-radius:8px;background:#fff;cursor:pointer;font:inherit;font-size:14px;color:inherit;text-align:right}
+.wpbtn .wpsum{display:flex;flex-wrap:wrap;gap:4px}.wpbtn b{color:var(--muted)}
+.wplist{display:none;position:absolute;z-index:60;top:100%;right:0;left:0;margin-top:3px;max-height:210px;overflow-y:auto;background:#fff;border:1px solid var(--line,#d5dbe5);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:4px}
+.wpick.on .wplist{display:block}
+.wplist label{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;color:var(--ink,#1c2533);border-right:4px solid var(--uc,#ccc);margin:2px 0}
+.wplist label:hover{background:#f1f5fb}.wplist label:has(input:checked){background:#e7eef8;font-weight:700}

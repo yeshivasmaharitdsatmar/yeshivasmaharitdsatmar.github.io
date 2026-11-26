@@ -6,12 +6,14 @@
 const myKey = () => (myEmail || '').toLowerCase();
 // A private task is seen only by the person who made it (UI filter + RLS on events, see SETUP.sql).
 const taskVisible = x => x && x.title && !x.del && (!x.priv || (x.owner || '').toLowerCase() === myKey()) && (x.area || 'fund') === (AREA || 'fund');   // tuition tasks (area 'tu') only in the tuition area
-const taskMine = x => x.who === me || x.who2 === me;
+// owner (v1.84): a task can be for several people – `whos` [names]; who/who2 = the first two (older tasks only have those)
+const taskWhos = x => Array.isArray(x.whos) ? x.whos.filter(Boolean) : [x.who, x.who2].filter(Boolean);
+const taskMine = x => taskWhos(x).includes(me);
 // owner (v1.52): office work shows a task only once its day has come (no date = right away)
 const taskDue = x => !x.due || x.due <= todayS();
 // when a task "arrives" for the 🔔 popup / seen marks: created, or the start of its day if that is later
 const taskArr = x => { const d = x.due ? new Date(x.due + 'T00:00:00').toISOString() : ''; return (x.created || '') > d ? (x.created || '') : d; };
-const taskWho = x => [x.who, x.who2].filter(Boolean).join(' + ') || 'נישט צוגעטיילט';
+const taskWho = x => taskWhos(x).join(' + ') || 'נישט צוגעטיילט';
 // Every event on a private task carries priv+owner, so the database never shows it to others.
 // Each team member has a colour (order of the team list); a task shows the colour of the one who asked for it.
 // No red in the palette (red means "owes"); the admin can pick each user's colour in Settings (setting ucol {name: colour}).
@@ -23,7 +25,28 @@ async function emitTask(id, p) {
   const cur = S.task[id];
   if (!cur) p = Object.assign({ from: me, created: new Date().toISOString() }, p);   // who asked, and when (for the 🔔)
   if (cur && cur.priv && p.priv === undefined) p = Object.assign({ priv: true, owner: cur.owner }, p);
+  if (('who' in p || 'who2' in p) && !('whos' in p)) {   // old-style writes (row dropdown, renames): keep the others
+    const old = cur ? taskWhos(cur) : [];
+    p = Object.assign({}, p, { whos: ['who' in p ? p.who : old[0], 'who2' in p ? p.who2 : old[1], ...old.slice(2)] });
+  }
+  if ('whos' in p) { const w = [...new Set((p.whos || []).filter(Boolean))]; p = Object.assign({}, p, { whos: w, who: w[0] || '', who2: w[1] || '' }); }
   await emit('task', id, p);
+}
+// One "for whom" field (owner, v1.84): a button with the chosen names that opens a scroll-down list of checkboxes.
+// whoPick(id, [names]) → HTML; whoPickVals(id) → [names]. Nothing checked = not assigned.
+function whoPick(id, sel) {
+  sel = sel || [];
+  return `<div class="wpick" id="${id}"><button type="button" class="wpbtn" onclick="wpOpen('${id}',event)"><span class="wpsum"></span><b>▾</b></button>
+   <div class="wplist">${USERS().map(u => `<label style="--uc:${userColor(u)}"><input type="checkbox" value="${esc(u)}" ${sel.includes(u) ? 'checked' : ''} onchange="wpSum('${id}')"> ${esc(u)}</label>`).join('')}</div></div>`;
+}
+function whoPickVals(id) { return [...document.querySelectorAll('#' + id + ' .wplist input:checked')].map(x => x.value); }
+function wpSum(id) { const e = document.getElementById(id); if (!e) return; const v = whoPickVals(id); e.querySelector('.wpsum').innerHTML = v.length ? v.map(userChip).join(' ') : '<span class="dim">נישט צוגעטיילט</span>'; }
+function wpInit(root) { (root || document).querySelectorAll('.wpick').forEach(e => wpSum(e.id)); }
+function wpOpen(id, ev) {
+  ev.stopPropagation(); const e = document.getElementById(id), on = !e.classList.contains('on');
+  document.querySelectorAll('.wpick.on').forEach(x => x.classList.remove('on'));
+  e.classList.toggle('on', on);
+  if (!window._wpDoc) { window._wpDoc = 1; document.addEventListener('click', x => { if (!x.target.closest('.wpick')) document.querySelectorAll('.wpick.on').forEach(y => y.classList.remove('on')); }); }
 }
 
 // ---------- HOME / DASHBOARD ----------
@@ -37,10 +60,10 @@ function todoRow(id, x) {
   const a = x.code ? IDX.by.get(+x.code) : null;
   const fr = x.from && x.from !== x.who ? x.from : '';
   return `<div class="task" style="${x.done ? 'opacity:.5;' : ''}${x.from ? 'border-left:6px solid ' + userColor(x.from) + ';' : ''}"><div class="chk" title="געטון" onclick="${x.done ? `taskUndo('${id}')` : `taskDone('${id}')`}">${x.done ? '✓' : ''}</div>
-   <div><div class="t">${x.priv ? '<span class="tag gray">🔒 פריוואט</span> ' : ''}${x.who && x.who2 ? '<span class="tag custom">👥 צוויי</span> ' : ''}${esc(x.title)}
+   <div><div class="t">${x.priv ? '<span class="tag gray">🔒 פריוואט</span> ' : ''}${taskWhos(x).length > 1 ? '<span class="tag custom">👥 ' + taskWhos(x).length + '</span> ' : ''}${esc(x.title)}
     ${a ? `· <a class="name" onclick="openAcct(${x.code})">${esc(a.h || a.n)}</a>` : ''} ${x.pri === 'hi' ? '<span class="tag hi">דרינגענד</span>' : ''}
     ${late ? `<span class="tag late">שפעט ${late} טעג</span>` : (x.due === t && !x.done ? '<span class="tag ask">היינט</span>' : '')}</div>
-   <div class="m"><span>📅 ${x.due ? fmtDual(x.due) : 'אן א דאטום'}</span><span>${taskCat(x) === 'call' ? '📞' : '📋'}</span><span>👤 ${[x.who, x.who2].filter(Boolean).map(userChip).join(' + ') || 'נישט צוגעטיילט'}</span>${fr ? `<span>פון ${userChip(fr)}</span>` : ''}${x.note ? `<span>📝 ${esc(x.note)}</span>` : ''}${x.repeat && FREQ[x.repeat] ? `<span>🔁 ${FREQ[x.repeat][0]}</span>` : ''}${x.done ? `<span>✓ ${fmtD(x.doneAt)}</span>` : ''}</div></div>
+   <div class="m"><span>📅 ${x.due ? fmtDual(x.due) : 'אן א דאטום'}</span><span>${taskCat(x) === 'call' ? '📞' : '📋'}</span><span>👤 ${taskWhos(x).map(userChip).join(' + ') || 'נישט צוגעטיילט'}</span>${fr ? `<span>פון ${userChip(fr)}</span>` : ''}${x.note ? `<span>📝 ${esc(x.note)}</span>` : ''}${x.repeat && FREQ[x.repeat] ? `<span>🔁 ${FREQ[x.repeat][0]}</span>` : ''}${x.done ? `<span>✓ ${fmtD(x.doneAt)}</span>` : ''}</div></div>
    <div class="acts">${x.rc ? `<button class="btn gold sm" onclick="rcOpenTask('${id}')">🖨️ Open receipts</button>` : ''}${x.fm ? `<button class="btn gold sm" onclick="frMailTask('${id}')">✉️ Send to office</button>` : ''}${x.done ? '' : `<button class="btn sm" onclick="taskDone('${id}')">✓ Done</button>`}<button class="btn ghost sm" onclick="taskForm('${id}')">Edit</button></div></div>`;
 }
 function vTodo() {
@@ -50,10 +73,10 @@ function vTodo() {
   const open = all.filter(([, x]) => !x.done && (ui.todoLater || taskDue(x)));
   const F = {
     mine: ['מיינע', x => taskMine(x)],
-    only: ['נאר איך', x => x.who === me && !x.who2],
+    only: ['נאר איך', x => taskWhos(x).join() === me],
     priv: ['🔒 פריוואט', x => x.priv],
-    two: ['👥 צוויי באניצער', x => x.who && x.who2],
-    none: ['נישט צוגעטיילט', x => !x.who && !x.who2],
+    two: ['👥 אפאר באניצער', x => taskWhos(x).length > 1],
+    none: ['נישט צוגעטיילט', x => !taskWhos(x).length],
     all: ['אלע', () => true]
   };
   const f = F[ui.todoF] ? ui.todoF : 'mine';
