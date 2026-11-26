@@ -115,6 +115,7 @@ Backend is **Supabase** (project `qrudivrakwoathgbzrwd`).
 - Hebrew name first and bold. The English name comes after it, smaller and lighter.
 - Phones: cell first, then home.
 - Every date input offers both the Jewish and the English calendar.
+- No VIP (owner, v1.87): the VIP option, ⭐ marks, the "⭐ VIP" chip, VIP sorting and the Excel column were removed; old `acct.vip` values are simply ignored.
 - An assignee (one of the team) can be set per account or task, with "who calls" dropdowns on rows. There is a quick "📝 נאטיץ" note button, and the last note is shown on rows.
 - "Ask again" schedule per account:
   - Options: monthly, 3, 6 or 12 months, before each Yom Tov, one-time (`once`), or none.
