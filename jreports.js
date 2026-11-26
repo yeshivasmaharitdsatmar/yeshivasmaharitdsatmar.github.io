@@ -136,12 +136,21 @@ function allTags() { const m = new Map(); Object.values(S.acct).forEach(st => (s
 const tagHue = t => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
 const tagChip = (t, x) => `<span class="tagc" style="background:hsl(${tagHue(t)},70%,92%);border-color:hsl(${tagHue(t)},45%,75%);color:hsl(${tagHue(t)},45%,28%)">🏷️ ${esc(t)}${x || ''}</span>`;
 const tagChips = c => tagsOf(c).map(t => tagChip(t)).join(' ');
+// owner (v1.86): every flag sits in one drop-down with a checkbox; only the chosen flags are written out on the account
 function tagEditor(code) {
-  const T = tagsOf(code), jsq = t => esc(t).replace(/'/g, '&#39;');
-  return `<div id="tged"><div class="chips" style="margin-bottom:8px">${PRESET_TAGS.map(t => `<button type="button" class="chip ${T.includes(t) ? 'on' : ''}" style="font-size:12px;padding:3px 10px" onclick="tagToggle(${code},'${jsq(t)}')">${T.includes(t) ? '✓ ' : ''}${esc(t)}</button>`).join('')}</div>
-   <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">${T.filter(t => !PRESET_TAGS.includes(t)).map(t => tagChip(t, ` <a style="cursor:pointer" title="אראפנעמען" onclick="tagDel(${code},'${esc(t).replace(/'/g, '&#39;')}')">✕</a>`)).join('')}
-   <input id="tgin" list="tglist" placeholder="+ Another flag..." style="flex:1;min-width:170px" onkeydown="if(event.key==='Enter'){event.preventDefault();tagAdd(${code})}"><datalist id="tglist">${allTags().map(t => `<option value="${esc(t)}">`).join('')}</datalist>
-   <button class="btn ghost sm" onclick="tagAdd(${code})">Add</button></div></div>`;
+  const T = tagsOf(code), L = allTags(); T.forEach(t => { if (!L.includes(t)) L.push(t); });
+  return `<div id="tged"><div class="tgsel" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${tagSelHTML(code)}</div>
+   <div class="wpick" id="tgpick"><button type="button" class="wpbtn" onclick="wpOpen('tgpick',event)"><span class="tgcnt">🏷️ Choose flags (${T.length})</span><b>▾</b></button>
+    <div class="wplist">${L.map(t => `<label><input type="checkbox" value="${esc(t)}" ${T.includes(t) ? 'checked' : ''} onchange="tagSet(${code},this.value,this.checked)"> ${esc(t)}</label>`).join('')}
+     <div style="display:flex;gap:6px;padding:6px;border-top:1px solid var(--line);margin-top:4px"><input id="tgin" placeholder="+ Another flag..." style="flex:1;min-width:120px" onkeydown="if(event.key==='Enter'){event.preventDefault();tagAdd(${code})}"><button type="button" class="btn ghost sm" onclick="tagAdd(${code})">Add</button></div></div></div></div>`;
+}
+function tagSelHTML(code) { const T = tagsOf(code); return T.length ? T.map(t => tagChip(t, ` <a style="cursor:pointer" title="אראפנעמען" onclick="tagDel(${code},'${esc(t).replace(/'/g, '&#39;')}')">✕</a>`)).join('') : '<span class="dim" style="font-size:13px">קיין Flags</span>'; }
+async function tagSet(code, t, on) {
+  const T = tagsOf(code);
+  await emit('acct', code, { tags: on ? [...new Set(T.concat(t))] : T.filter(x => x !== t) });
+  const e = $('#tged .tgsel'); if (e) e.innerHTML = tagSelHTML(code);
+  const c = $('#tged .tgcnt'); if (c) c.textContent = '🏷️ Choose flags (' + tagsOf(code).length + ')';
+  render();
 }
 async function tagToggle(code, t) {
   const T = tagsOf(code);

@@ -43,7 +43,7 @@ function whoPick(id, sel) {
    <div class="wplist">${USERS().map(u => `<label style="--uc:${userColor(u)}"><input type="checkbox" value="${esc(u)}" ${sel.includes(u) ? 'checked' : ''} onchange="wpSum('${id}')"> ${esc(u)}</label>`).join('')}</div></div>`;
 }
 function whoPickVals(id) { return [...document.querySelectorAll('#' + id + ' .wplist input:checked')].map(x => x.value); }
-function wpSum(id) { const e = document.getElementById(id); if (!e) return; const v = whoPickVals(id); e.querySelector('.wpsum').innerHTML = v.length ? v.map(userChip).join(' ') : '<span class="dim">נישט צוגעטיילט</span>'; }
+function wpSum(id) { const e = document.getElementById(id); if (!e || !e.querySelector('.wpsum')) return; const v = whoPickVals(id); e.querySelector('.wpsum').innerHTML = v.length ? v.map(userChip).join(' ') : '<span class="dim">נישט צוגעטיילט</span>'; }
 function wpInit(root) { (root || document).querySelectorAll('.wpick').forEach(e => wpSum(e.id)); }
 function wpOpen(id, ev) {
   ev.stopPropagation(); const e = document.getElementById(id), on = !e.classList.contains('on');
