@@ -415,7 +415,7 @@ async function answer(text: string, member: any): Promise<string> {
     for (const code of codes) {
       if (!C.IDX.by.has(code)) continue;
       const k = ask(code);
-      if (k.next && k.next <= today && (k.st.assigned || '') === me) { asks++; if (askL.length < 5) { const a = C.IDX.by.get(code); askL.push('• בעטן ' + nm(a) + (a.ph[0] ? ' ' + a.ph[0][1] : '')); } }
+      if (k.next && k.next <= today && (Array.isArray(k.st.asg) ? k.st.asg : [k.st.assigned]).includes(me)) { asks++; if (askL.length < 5) { const a = C.IDX.by.get(code); askL.push('• בעטן ' + nm(a) + (a.ph[0] ? ' ' + a.ph[0][1] : '')); } }
     }
     if (!out.length && !asks) return '🎉 גארנישט פאר היינט';
     return 'היינט (' + (out.length + asks) + '):\n' + out.slice(0, 8).concat(askL).join('\n');
