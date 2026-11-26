@@ -54,7 +54,7 @@ async function rest(path: string, init: RequestInit = {}) {
 }
 
 // ---------- data cache (kept while the function stays warm) ----------
-const C: any = { jlsVer: -1, JD: null, IDX: null, lastId: 0, S: { acct: {}, task: {}, call: {}, hist: {}, shul: {}, settings: { s: { defFreq: 'm12', maxYears: 5 } } } };
+const C: any = { jlsVer: -1, JD: null, IDX: null, lastId: 0, S: { acct: {}, task: {}, call: {}, hist: {}, shul: {}, smsmore: {}, settings: { s: { defFreq: 'm12', maxYears: 5 } } } };
 async function load() {
   const meta = await (await rest('/rest/v1/jls_meta?id=eq.1&select=version')).json();
   const ver = meta[0] ? meta[0].version : 0;
@@ -167,7 +167,7 @@ const CMDS: [string[], string][] = [
   [['אדרעס', 'אדרעסן', 'אדרעסע', 'address', 'addr', 'a', 'א'], 'address'],
   [['באלאנס', 'בעלענס', 'חוב', 'balance', 'bal', 'b', 'ב'], 'balance'],
   [['אינפא', 'info', 'i'], 'info'],
-  [['געגעבן', 'נדבות', 'נדבה', 'באצאלט', 'באצאלונגען', 'באצאלונגן', 'באצאלונג', 'פעימענטס', 'given', 'gave', 'paid', 'payments', 'g', 'ג'], 'given'],
+  [['געגעבן', 'נדבות', 'נדבה', 'באצאלט', 'באצאלונגען', 'באצאלונגן', 'באצאלונג', 'פעימענטס', 'given', 'gave', 'paid', 'payments', 'g', 'ג', 'גג', 'gg'], 'given'],
   [['היינט', 'today', 't', 'ה'], 'today'],
   [['פלעדזשעס', 'פלעדזשעס', 'פלעדזש', 'pledges', 'pl', 'פ'], 'pledges'],
   [['געקאלט', 'called', 'c', 'ק'], 'called'],
@@ -177,13 +177,30 @@ const CMDS: [string[], string][] = [
   [['תלמידים', 'תלמיד', 'קינדער', 'students', 'kids', 'ת'], 'students'],
   [['הילף', 'help', '?', 'h', '؟'], 'help']
 ];
-const FILLER = /^(נאמען|name|פון|ביי|אלע|all|לעצטע|יאר|דעם|די|-|–|:|→)$/;
+const FILLER = /^(נאמען|name|פון|ביי|אלע|אלעס|כל|all|לעצטע|יאר|דעם|די|-|–|:|→)$/;
+// v1.85 (owner): "ג אלע name" (or "גג name") = EVERY payment of that account, not only the last 12 months
+const ALLW = /^(אלע|אלעס|כל|all|גג|gg)$/i;
+// every payment, newest first, with a subtotal line per English year; a long list is sent in parts ("מער", v1.86)
+function allPays(head: string, L: any[], di: number, ai: number, ri: number) {
+  const P = L.filter((x: any) => !x[ri] && validD(x[di])).sort((x: any, y: any) => y[di].localeCompare(x[di]) || (y[0] || 0) - (x[0] || 0));
+  if (!P.length) return head + '\nקיין באצאלונגען';
+  const sum = (A: any[]) => A.reduce((s: number, x: any) => s + (+x[ai] || 0), 0);
+  const out = [head, 'אלע באצאלונגען: ' + money(sum(P)) + ' (' + P.length + ')'];
+  let yr = '';
+  for (const x of P) {
+    if (x[di].slice(0, 4) !== yr) { yr = x[di].slice(0, 4); const Y = P.filter((z: any) => z[di].startsWith(yr)); out.push('— ' + yr + ': ' + money(sum(Y)) + ' (' + Y.length + ')'); }
+    out.push(shortD(x[di]) + ' ' + money(x[ai]));
+  }
+  return out.join('\n');
+}
 const HELP = 'YG Fund SMS – שיקט נאר:\n' +
   'נאמען → אלעס\n' +
   'ט נאמען → טעלעפאן\n' +
   'א נאמען → אדרעס\n' +
   'ב נאמען → באלאנס\n' +
   'ג נאמען → געגעבן\n' +
+  'גג נאמען → אלע באצאלונגען\n' +
+  'מער → דער רעשט פון א לאנגן ענטפער\n' +
   'ק נאמען → געקאלט\n' +
   'ש נאמען → שול\n' +
   'ה → היינט · פ → פלעדזשעס\n' +
@@ -225,12 +242,14 @@ const TUHELP = 'YG Fund SMS – שכר לימוד, שיקט נאר:\n' +
   'א נאמען → אדרעס\n' +
   'ב נאמען → באלאנס\n' +
   'ג נאמען → באצאלונגען\n' +
+  'גג נאמען → אלע באצאלונגען\n' +
+  'מער → דער רעשט פון א לאנגן ענטפער\n' +
   'ת נאמען → תלמידים\n' +
   'ה → היינט\n' +
   '+ טעקסט → To-Do\n' +
   'נ נאמען: טעקסט → נאטיץ\n' +
   'ביישפיל: ב טענענבוים';
-async function tuAnswer(cmd: string, rest: string, member: any): Promise<string> {
+async function tuAnswer(cmd: string, rest: string, member: any, all = false): Promise<string> {
   await loadTU();
   const me = member.name, today = todayS();
   if (cmd === 'help') return TUHELP;
@@ -273,6 +292,7 @@ async function tuAnswer(cmd: string, rest: string, member: any): Promise<string>
   if (cmd === 'address') return nm(a) + '\n' + (a.a || 'קיין אדרעס');
   if (cmd === 'balance') return nm(a) + '\nבאלאנס: ' + tuBalTxt(T.bal) + (T.due > 0.5 ? '\nפעליג יעצט: ' + money(T.due) : '');
   if (cmd === 'students') return nm(a) + '\n' + (kidsNow.length ? kidsNow.map(kidTxt).join('\n') : 'קיין תלמידים יעצט');
+  if (cmd === 'given' && all) return allPays(nm(a) + ' #' + a.c, T.f.pay, 2, 3, 7);
   if (cmd === 'given') {
     const yearAgo = addMonths(today, -12);
     const L = T.f.pay.filter((p: any) => !p[7] && p[2] && p[2] >= yearAgo && p[2] <= today).sort((x: any, y: any) => y[2].localeCompare(x[2]));
@@ -317,9 +337,7 @@ function shulInfo(q: string, strict = false) {
   if (city) {
     const S = all.filter((sh: any) => city[1].test([sh.city, sh.addr, sh.zip].join(' '))).sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'he'));
     if (!S.length) return 'קיין שולן אין ' + city[2];
-    let out = '🕍 ' + S.length + ' שולן אין ' + city[2] + ':', n = 0;
-    for (const sh of S) { const line = '\n• ' + sh.name; if (out.length + line.length > MAX_REPLY - 40) break; out += line; n++; }
-    return out + (n < S.length ? '\n…און נאך ' + (S.length - n) + '. שיקט למשל: ש ' + city[2] + ' סקווירא' : '');
+    return '🕍 ' + S.length + ' שולן אין ' + city[2] + ':' + S.map((sh: any) => '\n• ' + sh.name).join('');   // long lists go in parts ("מער")
   }
   // "ש וויליאמסבורג סקווירא": a place word first or last narrows the search to that place
   if (words.length > 1) for (const [i, rest] of [[0, words.slice(1)], [words.length - 1, words.slice(0, -1)]] as [number, string[]][]) {
@@ -341,7 +359,7 @@ function shulInfo(q: string, strict = false) {
   if (!L.length) return 'קיין שול געפונען: ' + q;
   if (L.length > 1) {
     const ex = L.filter((s: any) => [s.name, s.eng, s.short].some(v => norm(v) === norm(q)));
-    if (ex.length !== 1) return L.length + ' שולן:\n' + L.slice(0, 8).map((s: any) => '• ' + s.name + (s.eng && s.eng !== s.name ? ' / ' + s.eng : '') + (s.zip ? ' ' + s.zip : '')).join('\n') + '\nשיקט מיט מער פונעם נאמען';
+    if (ex.length !== 1) return L.length + ' שולן:\n' + L.map((s: any) => '• ' + s.name + (s.eng && s.eng !== s.name ? ' / ' + s.eng : '') + (s.zip ? ' ' + s.zip : '')).join('\n') + '\nשיקט מיט מער פונעם נאמען';
     L.splice(0, L.length, ex[0]);
   }
   const s: any = L[0], n = Object.values(C.S.acct).filter((a: any) => a.shul === s.id).length;
@@ -353,6 +371,7 @@ async function answer(text: string, member: any): Promise<string> {
   const t = text.trim().replace(/\s+/g, ' ');
   if (!t) return isTuMember(member) ? TUHELP : HELP;
   let cmd = 'info', rest = t;
+  const all = t.split(' ').some(w => ALLW.test(w.replace(/[.,:!?]+$/, '')));
   const cmdOf = (w: string) => { w = w.toLowerCase().replace(/[.,:!?]+$/, '') || w; const h = CMDS.find(([ws]) => ws.includes(w)); return h ? h[1] : ''; };
   if (t.startsWith('+')) { cmd = 'todo'; rest = t.slice(1); }
   else {
@@ -362,7 +381,7 @@ async function answer(text: string, member: any): Promise<string> {
   }
   if (cmd !== 'todo' && cmd !== 'note') rest = rest.split(' ').filter(w => !FILLER.test(w) && !(cmdOf(w) && w.length > 1)).join(' ');
   rest = rest.trim();
-  if (isTuMember(member)) return tuAnswer(cmd, rest, member);
+  if (isTuMember(member)) return tuAnswer(cmd, rest, member, all);
   const me = member.name, today = todayS();
   if (cmd === 'help') return HELP;
 
@@ -391,7 +410,7 @@ async function answer(text: string, member: any): Promise<string> {
     for (const code of codes) {
       if (!C.IDX.by.has(code)) continue;
       const k = ask(code);
-      if (k.next && k.next <= today && (k.st.assigned || '') === me) { asks++; if (askL.length < 5) { const a = C.IDX.by.get(code); askL.push('• בעטן ' + nm(a) + (a.ph[0] ? ' ' + a.ph[0][1] : '')); } }
+      if (k.next && k.next <= today && (Array.isArray(k.st.asg) ? k.st.asg : [k.st.assigned]).includes(me)) { asks++; if (askL.length < 5) { const a = C.IDX.by.get(code); askL.push('• בעטן ' + nm(a) + (a.ph[0] ? ' ' + a.ph[0][1] : '')); } }
     }
     if (!out.length && !asks) return '🎉 גארנישט פאר היינט';
     return 'היינט (' + (out.length + asks) + '):\n' + out.slice(0, 8).concat(askL).join('\n');
@@ -424,6 +443,7 @@ async function answer(text: string, member: any): Promise<string> {
   if (cmd === 'phone') return nm(a) + '\n' + phones;
   if (cmd === 'address') return nm(a) + '\n' + (a.a || 'קיין אדרעס');
   if (cmd === 'balance') return nm(a) + '\nבאלאנס: ' + money(p ? p.open : 0) + (p && p.dueNow > 0.009 ? '\nפעליג יעצט: ' + money(p.dueNow) : '');
+  if (cmd === 'given' && all) return allPays(nm(a) + ' #' + a.c, g ? g.list : [], 2, 3, 9);
   if (cmd === 'given') {
     if (!lastYear.length) return nm(a) + '\nלעצטע יאר: גארנישט' + (g && g.last ? '\nלעצטע מאל: ' + money(g.lastAmt) + ' ' + shortD(g.last) : '');
     return nm(a) + '\nלעצטע יאר: ' + money(lyTotal) + ' (' + lastYear.length + ')\n' + lastYear.slice(0, 6).map((x: any) => shortD(x[2]) + ' ' + money(x[3])).join('\n');
@@ -531,6 +551,33 @@ async function memberFor(from: string) {
   return d.length === 10 ? team.find((t: any) => t.phone && String(t.phone).split(/[,;\/]+/).some((p: string) => digits10(p) === d)) : null;
 }
 const clip = (s: string) => s.length > MAX_REPLY ? s.slice(0, MAX_REPLY - 1) + '…' : s;
+// v1.86 (owner): a long answer is NOT made longer – it is cut into parts of MAX_REPLY at line ends; each part but the
+// last ends with MORE_TXT, and texting "מער" sends the next part. The rest is kept per phone as event kind `smsmore`
+// (id = 10 digits, p {rest, at}), so it survives a cold start. Any other question replaces it.
+const MORE_W = /^(מער|מעהר|more|m|\.\.\.|…)$/i;
+const MORE_TXT = '\n➡️ פאר נאך, שיקט: מער';
+function pageSplit(s: string): [string, string] {
+  if (s.length <= MAX_REPLY) return [s, ''];
+  const room = MAX_REPLY - MORE_TXT.length;
+  let cut = s.lastIndexOf('\n', room);
+  if (cut < room / 3) cut = room;   // one very long line: cut it anyway
+  return [s.slice(0, cut).replace(/\s+$/, '') + MORE_TXT, s.slice(cut).replace(/^\n+/, '')];
+}
+async function reply(body: string, from: string, m: any): Promise<string> {
+  const ph = digits10(from), word = body.trim().replace(/[.,!?]+$/, '');
+  const saved = ((C.S.smsmore || {})[ph] || {}).rest || '';
+  let text: string;
+  if (MORE_W.test(word)) {
+    if (!saved) return 'נישטא מער. שיקט א נייע פראגע.';
+    text = saved;
+  } else text = await answer(body, m);
+  const [now, rest] = pageSplit(text);
+  if (rest || saved) {
+    await addEvents([{ k: 'smsmore', eid: ph, p: { rest, at: new Date().toISOString() } }], m.name);
+    (C.S.smsmore || (C.S.smsmore = {}))[ph] = { rest };
+  }
+  return now;
+}
 const xml = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as any)[c]);
 const twiml = (msg?: string) => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + (msg ? '<Message>' + xml(msg) + '</Message>' : '') + '</Response>', { headers: { 'Content-Type': 'text/xml' } });
 
@@ -553,7 +600,7 @@ async function handle(req: Request): Promise<Response> {
       await load();
       const asid = params.get('AccountSid') || '';
       if (/^AC[0-9a-f]{32}$/.test(asid) && SET().twSid !== asid) { await addEvents([{ k: 'settings', eid: 's', p: { twSid: asid } }], BY_AUTO); C.S.settings.s = Object.assign(C.S.settings.s || {}, { twSid: asid }); }
-      return twiml(clip(await answer(params.get('Body') || '', m)));
+      return twiml(clip(await reply(params.get('Body') || '', params.get('From') || '', m)));
     }
     if (req.headers.get('x-textillion-signature')) {                  // ---- Textillion
       if (!(await textillionOk(req, raw))) return new Response('forbidden', { status: 403 });
@@ -564,9 +611,9 @@ async function handle(req: Request): Promise<Response> {
       const m = await memberFor(d.from);
       if (!m) return new Response('ok');
       await load();
-      const reply = clip(await answer(d.body || '', m));
+      const out = clip(await reply(d.body || '', d.from, m));
       const r = await fetch(TX_API() + '/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ENV('TEXTILLION_API_KEY'), ...(ev.id ? { 'Idempotency-Key': 'yg-' + ev.id } : {}) },
-        body: JSON.stringify({ to: d.from, ...(d.to ? { from: d.to } : {}), body: reply }) });
+        body: JSON.stringify({ to: d.from, ...(d.to ? { from: d.to } : {}), body: out }) });
       if (!r.ok) console.error('Textillion send', r.status, (await r.text()).slice(0, 300));
       return new Response('ok');
     }
@@ -578,8 +625,8 @@ async function handle(req: Request): Promise<Response> {
     const m = await memberFor(from);
     if (!m) return new Response('ok');
     await load();
-    const reply = clip(await answer(pl.text || '', m));
-    await fetch('https://api.telnyx.com/v2/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ENV('TELNYX_API_KEY') }, body: JSON.stringify({ from: to, to: from, text: reply }) });
+    const out = clip(await reply(pl.text || '', from, m));
+    await fetch('https://api.telnyx.com/v2/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ENV('TELNYX_API_KEY') }, body: JSON.stringify({ from: to, to: from, text: out }) });
     return new Response('ok');
   } catch (e) {
     console.error(e);
@@ -588,4 +635,4 @@ async function handle(req: Request): Promise<Response> {
 }
 
 if ((globalThis as any).Deno) (globalThis as any).Deno.serve(handle);
-export { handle, answer, load, C };
+export { handle, answer, reply, pageSplit, load, C };
