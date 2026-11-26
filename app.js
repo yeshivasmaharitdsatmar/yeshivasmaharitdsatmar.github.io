@@ -15,11 +15,11 @@ const validD = s => s && s >= '1990-01-01' && s <= '2100-01-01';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 3200); }
-// 📌 table headers stay on screen while scrolling (owner, v1.84): they stick right under the page header, whose height
+// 📌 table headers stay on screen while scrolling (owner, v1.85): they stick right under the page header, whose height
 // is kept in the CSS variable --hdr
 function hdrVar() {
   const h = document.querySelector('header'), r = document.documentElement.style; if (h) r.setProperty('--hdr', h.offsetHeight + 'px');
-  const p = document.querySelector('#main > .row:first-child');   // v1.84: the sticky page top row; table headers stick under it
+  const p = document.querySelector('#main > .row:first-child');   // v1.85: the sticky page top row; table headers stick under it
   r.setProperty('--phd', (p && getComputedStyle(p).position === 'sticky' ? p.offsetHeight : 0) + 'px');
 }
 document.addEventListener('DOMContentLoaded', () => { const m = document.getElementById('main'); if (m && window.MutationObserver) new MutationObserver(() => requestAnimationFrame(hdrVar)).observe(m, { childList: true }); });
@@ -78,7 +78,7 @@ function applyEvent(ev) {
     if (ev.p && ev.p.del) { HIST_DEL.add(ev.id); delete S.hist[ev.id]; }
   }
 }
-// ✏️ edit / delete a note (owner, v1.84): only who wrote it, or an admin; the log keeps every version
+// ✏️ edit / delete a note (owner, v1.85): only who wrote it, or an admin; the log keeps every version
 const HIST_DEL = new Set();
 const histCan = h => !!h && !h.res && (h.by === me || isAdmin());
 function histBtns(id, back) {
@@ -120,7 +120,7 @@ async function pullLog() {
   }
   return changed;
 }
-// Download a JLS data file always fresh (v1.84.1): the files used to be saved with Supabase's default 1-hour cache, so
+// Download a JLS data file always fresh (v1.85.1): the files used to be saved with Supabase's default 1-hour cache, so
 // another user's browser could show the old numbers for up to an hour after an import.
 async function jlsFile(path) {
   try {
@@ -149,7 +149,7 @@ function hebLast(a) {
   const lh = a.lh || (a.h ? a.h.trim().split(/\s+/).pop() : '');
   return lh ? '0' + lh + ' ' + (a.h || '') : '1' + (a.ln || a.n || '').toLowerCase() + ' ' + (a.n || '').toLowerCase();
 }
-// 🔍 Search that understands both keyboards (v1.84, owner): text typed with the keyboard on Hebrew/Yiddish while
+// 🔍 Search that understands both keyboards (v1.85, owner): text typed with the keyboard on Hebrew/Yiddish while
 // meaning English letters ("יקךךם" = "hello"), or English letters while meaning Yiddish ("nav" = "מאה"), is also tried through the other layout (standard Israeli layout). Niqqud and Yiddish ligatures
 // (ײ װ ױ) are ignored. qVars(raw) = the normalised text + its swapped twin; every search box tries both.
 const KB_PAIRS = "q/w'eקrרtאyטuוiןoםpפaשsדdגfכgעhיjחkלlךzזxסcבvהbנmצ;ף,ת.ץnמ";
@@ -390,7 +390,7 @@ function pwForm() {
 function whoSel(onch, cur) {
   return `<select class="mini whoc" title="ווער קאלט" style="--uc:${cur ? userColor(cur) : 'transparent'}" onchange="this.style.setProperty('--uc',this.value?userColor(this.value):'transparent');${onch}"><option value="">👤 נישט צוגעטיילט</option>${USERS().map(u => `<option value="${esc(u)}" ${u === cur ? 'selected' : ''}>👤 ${esc(u)}</option>`).join('')}</select>`;
 }
-async function assign(code, v) { await emit('acct', code, { assigned: v }); counts(); toast(v ? '✓ ' + v + ' וועט קאלן ' + acctName(+code) : 'נישט צוגעטיילט'); }
+async function assign(code, v) { await emit('acct', code, asgP(v ? [v, ...acctWhos(S.acct[code]).filter(x => x !== v)] : [])); counts(); toast(v ? '✓ ' + v + ' וועט קאלן ' + acctName(+code) : 'נישט צוגעטיילט'); }
 async function assignTask(id, v) { await emitTask(id, { who: v }); counts(); toast('✓'); }
 function lastNotes() { const m = new Map(); Object.values(S.hist).forEach(h => { const c = +h.code; if (!m.has(c) || (h.at || '') > (m.get(c).at || '')) m.set(c, h); }); return m; }
 function lastNoteHTML(code, br) {
@@ -401,16 +401,17 @@ function noteForm(code) {
   const a = IDX.by.get(+code), st = S.acct[code] || {};
   modal(`<h2>📝 נאטיץ: ${esc(a.h || a.n)}</h2><p class="sub">${a.ph.slice(0, 3).map(p => callBtn(p[1], code) + ' ' + esc(p[0] + ' ' + p[1])).join(' · ')}</p>
    <label class="f">וואס האט ער געענטפערט?<textarea id="nn" rows="3"></textarea></label>
-   <div class="grid2" style="margin-top:10px"><label class="f">ווער קאלט אים ווייטער<select id="nw"><option value="">נישט צוגעטיילט</option>${USERS().map(u => `<option ${u === st.assigned ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+   <div class="grid2" style="margin-top:10px"><div class="f"><span>ווער קאלט אים ווייטער (מען קען קלייבן אפאר)</span>${whoPick('nw', acctWhos(st))}</div>
    <label class="f">רימיינד ווידער (אפציאנאל)${dateField('nd', '', { clear: true })}</label></div>
    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="closeM()">Back</button><button class="btn" onclick="saveNote(${+code})">Save</button></div>`, 'narrow');
+  wpInit();
   setTimeout(() => $('#nn').focus(), 50);
 }
 async function saveNote(code) {
-  const t = $('#nn').value.trim(), w = $('#nw').value, d = $('#nd').value, st = S.acct[code] || {};
+  const t = $('#nn').value.trim(), wl = whoPickVals('nw'), w = wl[0] || '', d = $('#nd').value, st = S.acct[code] || {};
   if (t) await emit('hist', uid(), { code, text: t });
-  if (w !== (st.assigned || '')) await emit('acct', code, { assigned: w });
-  if (d) await emitTask(uid(), { title: 'קאלן ' + acctName(code), due: d, who: w || me, code, pri: 'norm', note: t });
+  if (wl.join() !== acctWhos(st).join()) await emit('acct', code, asgP(wl));
+  if (d) await emitTask(uid(), { title: 'קאלן ' + acctName(code), due: d, whos: wl.length ? wl : [me], code, pri: 'norm', note: t });
   closeM(); render(); toast('✓ Saved');
 }
 async function poll() {
@@ -506,7 +507,7 @@ function wire() {
 function setArea(a, keepView) {
   AREA = a; try { sessionStorage.setItem('yg_area', a); } catch (e) { }
   document.body.classList.toggle('area-tu', a === 'tu');
-  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.84</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.84</small>';
+  $('#logoTxt').innerHTML = a === 'tu' ? 'שכר לימוד<small>Tuition · v1.85</small>' : 'YG Fund<small>פאנדרעיזינג סיסטעם · v1.85</small>';
   $('#btnArea').style.display = canFund() && canView('tuition') ? '' : 'none';
   $('#btnArea').textContent = a === 'tu' ? '⇄ צו פאנדרעיזינג' : '⇄ צו שכר לימוד';
   setupUser();
@@ -574,7 +575,7 @@ function todayItems(filter) {
   codes.forEach(code => {
     if (!IDX.by.has(code)) return;
     const a = ask(code);
-    if (a.next && a.next <= t && ok(a.st.assigned || '')) out.push({ kind: 'ask', code, due: a.next, who: a.st.assigned || '', vip: !!a.st.vip, w: (IDX.yg.get(code) || {}).total || 0, freq: a.freq });
+    if (a.next && a.next <= t && (acctWhos(a.st).length ? acctWhos(a.st).some(ok) : ok(''))) out.push({ kind: 'ask', code, due: a.next, who: a.st.assigned || '', vip: !!a.st.vip, w: (IDX.yg.get(code) || {}).total || 0, freq: a.freq });
   });
   Object.entries(S.task).forEach(([id, x]) => {
     if (!taskVisible(x) || x.done || !x.due || x.due > t || !(taskWhos(x).length ? taskWhos(x).some(ok) : ok(''))) return;
@@ -727,7 +728,7 @@ async function setCalled(c, v, quiet) { await emit('call', c + '|' + monthKey(),
 const r2 = n => Math.round((+n || 0) * 100) / 100;
 const hebD = d => (d && d >= '1900') ? HEB.fmtHeb(d) : '';
 function csvPledges() {
-  xlsx([{ name: 'פלעדזשעס', rows: [['#', 'נאמען', 'English', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', 'פעליג יעצט', 'סך הכל אפען', 'לעצטע באצאלונג', 'סאליסיטאר', 'ווער קאלט', 'געקאלט']].concat(window._plRows.map(r => [r.c, r.a.h || r.a.n, r.a.n, (r.a.ph[0] || [])[1], (r.a.ph[1] || [])[1], r.a.a, r2(r.g.dueNow), r2(r.g.open), r.y ? r.y.last : '', r.g.sol, r.st.assigned || '', r.called ? 'יא' : ''])) }], 'pledges-' + monthKey() + '.xlsx');
+  xlsx([{ name: 'פלעדזשעס', rows: [['#', 'נאמען', 'English', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', 'פעליג יעצט', 'סך הכל אפען', 'לעצטע באצאלונג', 'סאליסיטאר', 'ווער קאלט', 'געקאלט']].concat(window._plRows.map(r => [r.c, r.a.h || r.a.n, r.a.n, (r.a.ph[0] || [])[1], (r.a.ph[1] || [])[1], r.a.a, r2(r.g.dueNow), r2(r.g.open), r.y ? r.y.last : '', r.g.sol, acctWhos(r.st).join(' + '), r.called ? 'יא' : ''])) }], 'pledges-' + monthKey() + '.xlsx');
 }
 
 // ---------- ACCOUNTS ----------
@@ -738,7 +739,7 @@ function filterAccounts() {
   if (f === 'yg') L = L.filter(a => IDX.yg.has(a.c));
   if (f === 'bal') L = L.filter(a => (IDX.pl.get(a.c) || {}).open > 0.009);
   if (f === 'vip') L = L.filter(a => (S.acct[a.c] || {}).vip);
-  if (f === 'mine') L = L.filter(a => (S.acct[a.c] || {}).assigned === me);
+  if (f === 'mine') L = L.filter(a => acctWhos(S.acct[a.c]).includes(me));
   if (f === 'active') L = L.filter(a => !a.x);
   if (f === 'once') L = L.filter(a => ask(a.c).freq === 'once');
   if (f === 'goal') L = L.filter(a => goalOf(a.c));
@@ -770,7 +771,7 @@ function vAccounts() {
   let tm; qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { ui.accQ = qi.value; ui.accN = 100; vAccounts(); }, 250); };
 }
 function csvAcc() {
-  xlsx([{ name: 'נדבנים', rows: [['#', 'נאמען', 'English', 'ווייב', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', 'YG סך הכל', 'וויפיל מאל', 'לעצטע מתנה', 'לעצטע סכום', 'אפענער באלאנס', 'ווייטער בעטן', 'VIP', 'אחראי', 'שול', 'נאטיצן']].concat(window._accL.map(a => { const g = IDX.yg.get(a.c) || {}, p = IDX.pl.get(a.c) || {}, st = S.acct[a.c] || {}; return [a.c, a.h || a.n, a.n, a.wh || a.w, (a.ph[0] || [])[1], (a.ph[1] || [])[1], a.a, r2(g.total), g.count || 0, g.last || '', g.last ? r2(g.lastAmt) : '', r2(p.open), ask(a.c).next || '', st.vip ? 'יא' : '', st.assigned || '', shulName(st.shul), st.notes || '']; })) }], 'nedavos-' + todayS() + '.xlsx');
+  xlsx([{ name: 'נדבנים', rows: [['#', 'נאמען', 'English', 'ווייב', 'טעלעפאן 1', 'טעלעפאן 2', 'אדרעס', 'YG סך הכל', 'וויפיל מאל', 'לעצטע מתנה', 'לעצטע סכום', 'אפענער באלאנס', 'ווייטער בעטן', 'VIP', 'אחראי', 'שול', 'נאטיצן']].concat(window._accL.map(a => { const g = IDX.yg.get(a.c) || {}, p = IDX.pl.get(a.c) || {}, st = S.acct[a.c] || {}; return [a.c, a.h || a.n, a.n, a.wh || a.w, (a.ph[0] || [])[1], (a.ph[1] || [])[1], a.a, r2(g.total), g.count || 0, g.last || '', g.last ? r2(g.lastAmt) : '', r2(p.open), ask(a.c).next || '', st.vip ? 'יא' : '', acctWhos(st).join(' + '), shulName(st.shul), st.notes || '']; })) }], 'nedavos-' + todayS() + '.xlsx');
 }
 // One donor: payments + pledges as two sheets
 function xlsAcct(code) {
@@ -815,7 +816,7 @@ function openAcct(code) {
    <label class="f">ווי אפט בעטן<select id="af">${Object.entries(FREQ).map(([kk, v]) => `<option value="${kk}" ${kk === k.freq ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
    <label class="f">ווייטער בעטן${dateField('an', st.nextAsk || '', { clear: true })}</label>
    <label class="f" style="grid-column:1/-1">✉️ אימעיל<input id="aem" type="email" style="direction:ltr" value="${esc(emailOf(code))}" placeholder="${esc((a.em || [])[0] || 'name@example.com')}"></label>
-   <label class="f">אחראי<select id="aa"><option value="">נישט צוגעטיילט</option>${USERS().map(u => `<option ${u === st.assigned ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+   <div class="f"><span>אחראי (מען קען קלייבן אפאר)</span>${whoPick('aa', acctWhos(st))}</div>
    <div style="grid-column:1/-1"><div class="k" style="margin-bottom:4px">🏷️ Flags</div>${tagEditor(code)}</div>
    <label class="f">🕍 געטראפן אין שול${shulSel('ash', st.shul || '')}</label>
    <label class="f">VIP<select id="av"><option value="">ניין</option><option value="1" ${st.vip ? 'selected' : ''}>⭐ יא</option></select></label>
@@ -824,18 +825,18 @@ function openAcct(code) {
   <div class="tabs2">${[['pay', 'באצאלונגען'], ['pl', 'פלעדזשעס'], ['hist', 'היסטאריע (' + hist.length + ')'], ['tasks', 'ארבעטן (' + tasks.filter(t => !t[1].done).length + ')']].map(([kk, l]) => `<button class="${acctTab === kk ? 'on' : ''}" onclick="acctTab='${kk}';openAcct(${code})">${l}</button>`).join('')}</div>
   <div class="scroll">${tabBody[acctTab]}</div>`);
 }
-// 🎯 donor goal (owner, v1.84): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
+// 🎯 donor goal (owner, v1.85): acct.goal = {amt, hy, tok, auto, note, subject, sentAt, won, wonAt} – always written whole.
 // The e-mail and the personal page (goal.html?t=tok) are built by the Supabase function "goal"; it also sends the
 // automatic e-mails every 2 weeks and the 🎉 e-mail when the goal is reached.
 const goalOf = c => (S.acct[c] || {}).goal || null;
-// owner (v1.84): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
+// owner (v1.85): a goal year runs from after Sukkos (24 Tishrei) to Simchas Torah of the next year
 function goalHY(iso) { const p = HEB.parts(iso); return !p ? 0 : /^Tishri/.test(p.m) && p.d <= 23 ? p.y - 1 : p.y; }
 function goalCalc(c) {
   const g = goalOf(c); if (!g || !(+g.amt > 0)) return null;
-  // v1.84 (owner): with a campaign (g.camp) only payments applied to that campaign count (any date); without one, the goal year as before
+  // v1.85 (owner): with a campaign (g.camp) only payments applied to that campaign count (any date); without one, the goal year as before
   const hy = +g.hy || goalHY(todayS()), camp = +g.camp || 0, list = ((IDX.yg.get(+c) || {}).list || []).filter(p => !p[9] && p[3] > 0 && p[2] && (camp ? +p[6] === camp : goalHY(p[2]) === hy));
   let given = Math.round(list.reduce((s, p) => s + p[3], 0) * 100) / 100;
-  // v1.84 (owner, #17623): JLS can split one payment between pledges (part to an old one). When the donor has pledges in this
+  // v1.85 (owner, #17623): JLS can split one payment between pledges (part to an old one). When the donor has pledges in this
   // campaign, JLS's own "Paid" on them is what was really applied – that is the total.
   if (camp) { const pl = (JD.pledges || []).filter(x => +x[1] === +c && +x[6] === camp); if (pl.length) given = Math.round(pl.reduce((s, x) => s + (+x[4] || 0), 0) * 100) / 100; }
   const amt = +g.amt;
@@ -880,7 +881,7 @@ async function goalSave(c) {
   toast('✓ Saved'); openAcct(c);
 }
 async function goalDel(c) { if (!confirm('אויסמעקן דעם ציל?')) return; await emit('acct', c, { goal: null }); openAcct(c); }
-// donor pages live on their own site (v1.84, owner): the e-mail must not lead to the app's address
+// donor pages live on their own site (v1.85, owner): the e-mail must not lead to the app's address
 const GOAL_SITE = 'https://maharit-report.github.io/';
 function goalLink(c) { const g = goalOf(c); if (!g || !g.tok) return; const u = GOAL_SITE + 'goal.html?t=' + g.tok; try { navigator.clipboard.writeText(u); toast('✓ Copied'); } catch (e) { prompt('Link:', u); } }
 async function goalCall(body) {
@@ -913,7 +914,7 @@ async function goalSend(c) {
   try { await goalCall({ action: 'send', code: c, to, subject: $('#gms').value, note: $('#gmn').value, cc: $('#gmc').value.trim(), by: me }); busy(false); await pullLog(); toast('✓ ✉️ ' + to); openAcct(c); }
   catch (e) { busy(false); $('#gmgo').disabled = false; toast('⚠️ ' + (e.message || e)); }
 }
-// 💳 On the account (owner, v1.84): active credit-card plans (JD.ccplans, schedule columns only) and held /
+// 💳 On the account (owner, v1.85): active credit-card plans (JD.ccplans, schedule columns only) and held /
 // post-dated checks (YG payments whose check date is still ahead) – the same things plCovered() looks at.
 function acctFuture(code) {
   const t = todayS(), camp = n => (JD.campaigns || {})[n] || (n ? '#' + n : '');
@@ -934,7 +935,7 @@ function acctFuture(code) {
    <table style="font-size:13px;margin-top:6px"><thead><tr><th>וואס</th><th>סכום</th><th>קאמפעין</th><th>אנגעהויבן / אריינגעלייגט</th><th>ביז</th><th>קומענדיגע</th><th>נאך צו קומען</th></tr></thead><tbody>${plans.join('')}${checks.join('')}</tbody></table></div>`;
 }
 async function saveAcct(code) {
-  await emit('acct', code, { freq: $('#af').value, nextAsk: $('#an').value, assigned: $('#aa').value, vip: !!$('#av').value, notes: $('#ao').value, shul: $('#ash').value, email: $('#aem').value.trim().toLowerCase() === ((IDX.by.get(code) || {}).em || [])[0] ? '' : $('#aem').value.trim().toLowerCase() });
+  await emit('acct', code, { freq: $('#af').value, nextAsk: $('#an').value, ...asgP(whoPickVals('aa')), vip: !!$('#av').value, notes: $('#ao').value, shul: $('#ash').value, email: $('#aem').value.trim().toLowerCase() === ((IDX.by.get(code) || {}).em || [])[0] ? '' : $('#aem').value.trim().toLowerCase() });
   closeM(); render(); toast('✓ Saved');   // owner (v1.84): Save closes the account window
 }
 async function addNote(code) {
@@ -944,7 +945,7 @@ async function addNote(code) {
 
 // ---------- REPORTS ----------
 // Payments by Jewish year and month (refunds left out)
-// Years are shown only up to the current Jewish year (owner, v1.84): no next year from post-dated payments,
+// Years are shown only up to the current Jewish year (owner, v1.85): no next year from post-dated payments,
 // scheduled credit-card charges or bills already entered for later.
 const curHY = () => (HEB.parts(todayS()) || {}).y || 9999;
 function hebYears() {
@@ -1180,7 +1181,7 @@ async function saveUsers() {
     if (!hasPhone && out.some(a => a.phone)) return err('צו אפהיטן סעלפאון נומערן דארף מען ערשט לויפן די SQL פון v1.6 אין Supabase (זעט SETUP.sql טייל 6)');
     for (const a of out) await q(sb.from('team').upsert(Object.assign({ email: a.email, name: a.name, is_admin: a.is_admin }, hasPhone ? { phone: a.phone || null } : {}, hasPerms ? { perms: a.perms } : {})));
     for (const [o, n] of Object.entries(renames)) {
-      for (const [c, st] of Object.entries(S.acct)) if (st.assigned === o) await emit('acct', c, { assigned: n });
+      for (const [c, st] of Object.entries(S.acct)) if (acctWhos(st).includes(o)) await emit('acct', c, asgP(acctWhos(st).map(u => u === o ? n : u)));
       for (const [id, t] of Object.entries(S.task)) { const w = taskWhos(t); if (w.includes(o)) await emitTask(id, { whos: w.map(u => u === o ? n : u) }); }
     }
     const uc = {}; rows.forEach(r => { const n = r.querySelector('.un').value.trim(), c = r.querySelector('.ucl'); if (n && c) uc[n] = c.value; });
@@ -1224,12 +1225,12 @@ async function saveSettings() {
 }
 
 // ---------- modal ----------
-function modal(h, cls) { const m = $('#modal'); m.className = 'modal' + (cls ? ' ' + cls : ''); m.innerHTML = h; initDateFields(m); $('#ov').classList.add('on'); }
+function modal(h, cls) { const m = $('#modal'); m.className = 'modal' + (cls ? ' ' + cls : ''); m.innerHTML = h; initDateFields(m); wpInit(m); $('#ov').classList.add('on'); }
 function closeM() { $('#ov').classList.remove('on'); }
 
 const setHH = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
 window.addEventListener('resize', setHH); window.addEventListener('load', setHH); setHH();
-// ---------- 🔄 new version on the website: update by itself (v1.84) ----------
+// ---------- 🔄 new version on the website: update by itself (v1.85) ----------
 // Every minute the page asks the server for index.html and compares <meta name="app-version">. When it changed:
 // if nobody is in the middle of something (no window open, not typing, no mouse/keys for 20 s) the page reloads by
 // itself and comes back to the same page; otherwise a small "🔄 נייע ווערסיע" button waits for a click.
