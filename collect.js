@@ -86,7 +86,15 @@ function colNav() {
   const nav = $('#nav'); let box = $('#colnav');
   if (!box) { box = document.createElement('div'); box.id = 'colnav'; nav.appendChild(box); }
   const inCol = view === 'col' || view === 'calling';
-  nav.classList.toggle('incol', inCol);
+  const inFund = AREA === 'fund' && (view === 'fund' || view === 'exp');   // fundraising accounts: own sub-menu too (owner, v1.91)
+  nav.classList.toggle('incol', inCol || inFund);
+  if (inFund) {
+    box.innerHTML = `<button data-v="home" class="colback">← פאנדרעיזינג</button>
+     <div class="navsec">💵 פאנדרעיזינג חשבונות</div>
+     <button data-v="fund" class="${view === 'fund' ? 'on' : ''}">💵 פאנדרעיזינג געהאלט</button>
+     <button data-v="exp" class="${view === 'exp' ? 'on' : ''}">🍽️ דינער עקספענסעס</button>`;
+    return;
+  }
   if (!inCol) { box.innerHTML = ''; return; }
   let n = {}; try { const L = colLists(); colTabs().forEach(([k]) => { n[k] = k === 'every' ? JD.accounts.filter(a => !a.x).length.toLocaleString() : k === 'today' || k === 'cb' || k === 'ask' ? L[k].filter(r => !r.done).length : L[k].length; }); } catch (e) { }
   const tab = ui.colTab || 'today';
