@@ -142,7 +142,7 @@ function vFund() {
   <div class="stats">
    <div class="stat"><b>${money(F.totIn)}</b><span>אריינגעקומען זינט ${fmtD(F.start)}</span></div>
    ${F.totEx ? `<div class="stat"><b>${money(F.totEx)}</b><span>אן פראצענט (אראפגערעכנט)</span></div>` : ''}
-   <div class="stat click" onclick="document.getElementById('expbox').scrollIntoView({behavior:'smooth'})"><b>${money(F.totExp)}</b><span>🍽️ דינער עקספענסעס – שוין אראפגערעכנט</span></div>
+   <div class="stat"><b>${money(F.totExp)}</b><span>🍽️ דינער עקספענסעס – שוין אראפגערעכנט</span></div>
    <div class="stat"><b>${money(F.totOwed)}</b><span>${F.pct}% קומט די פאנדרעיזערס</span></div>
    <div class="stat"><b>${money(F.totPaid)}</b><span>שוין באצאלט (${F.paid.length} מאל)</span></div>
    <div class="stat"><b class="${F.balance > 0.009 ? 'bal' : 'zero'}">${money(F.balance)}</b><span>${F.balance >= 0 ? 'נאך שולדיג' : 'איבערבאצאלט'}</span></div></div>
@@ -157,8 +157,7 @@ function vFund() {
    </tbody></table>
    ${F.exempt.length ? `<h3>סכומים אן פראצענט</h3><table><tbody>${F.exempt.map(x => `<tr><td class="num">${fmtD(x.date)}</td><td class="num">−${money(x.amt)}</td><td style="font-size:13px">${esc(x.note || '')}</td><td><button class="btn ghost sm" onclick="frExForm('${x.id}')">Edit</button></td></tr>`).join('')}</tbody></table>` : ''}
    ${Object.values(S.frin).some(x => !x.del) ? `<h3>אריינקומען וואס איז נישט אין JLS</h3><table><tbody>${Object.entries(S.frin).filter(([, x]) => !x.del).sort((a, b) => b[1].date.localeCompare(a[1].date)).map(([id, x]) => `<tr><td class="num">${fmtD(x.date)}</td><td class="num">${money(x.amt)}</td><td style="font-size:13px">${esc(x.note || '')}</td><td><button class="btn ghost sm" onclick="frInForm('${id}')">Edit</button></td></tr>`).join('')}</tbody></table>` : ''}
-  </div></div>
-  ${expCard(F)}`;
+  </div></div>`;   // dinner expenses: only through the side menu (owner, v1.92)
   const qi = null;
   if (qi) { if (ui._expFocus) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); ui._expFocus = false; } let tm; qi.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { ui.expQ = qi.value; ui._expFocus = true; vFund(); }, 300); }; }
 }
